@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { Siren, Menu, Train, MessageSquarePlus } from 'lucide-react';
+import { Siren, Menu, Train, MessageSquarePlus, Github } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -17,6 +17,7 @@ interface HeaderProps {
 export function Header({ enthusiastMode, onEnthusiastModeChange }: HeaderProps) {
   const [isSosOpen, setIsSosOpen] = useState(false);
   const [isHazardReportOpen, setIsHazardReportOpen] = useState(false);
+  const githubUrl = "https://github.com/operationforg3-maker/SafeTracks.git";
 
   return (
     <>
@@ -30,6 +31,12 @@ export function Header({ enthusiastMode, onEnthusiastModeChange }: HeaderProps) 
           </div>
 
           <div className="hidden items-center gap-4 md:flex">
+            <Button variant="outline" size="icon" asChild>
+                <a href={githubUrl} target="_blank" rel="noopener noreferrer">
+                    <Github className="h-4 w-4" />
+                    <span className="sr-only">GitHub</span>
+                </a>
+            </Button>
             <div className="flex items-center space-x-2">
               <Switch id="enthusiast-mode" checked={enthusiastMode} onCheckedChange={onEnthusiastModeChange} />
               <Label htmlFor="enthusiast-mode" className="cursor-pointer">Tryb Pasjonata</Label>
@@ -57,6 +64,12 @@ export function Header({ enthusiastMode, onEnthusiastModeChange }: HeaderProps) 
                     <Label htmlFor="enthusiast-mode-mobile">Tryb Pasjonata</Label>
                     <Switch id="enthusiast-mode-mobile" checked={enthusiastMode} onCheckedChange={onEnthusiastModeChange} />
                   </div>
+                  <Button asChild variant="outline" className="w-full">
+                     <a href={githubUrl} target="_blank" rel="noopener noreferrer">
+                        <Github className="mr-2 h-4 w-4" />
+                        GitHub
+                     </a>
+                  </Button>
                   <Button className="w-full" variant="outline" onClick={() => { setIsHazardReportOpen(true); }}>
                     <MessageSquarePlus className="mr-2 h-4 w-4" />
                     Zgłoś zagrożenie
