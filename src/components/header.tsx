@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from 'react';
-import { Siren, Menu, Train, MessageSquarePlus, Radio, Sparkles } from 'lucide-react';
+import Link from 'next/link';
+import { Siren, Menu, Train, MessageSquarePlus, Radio, Sparkles, Info, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -37,14 +38,14 @@ export function Header({
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 sm:h-16 items-center justify-between px-3 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="rounded-lg bg-primary p-1.5 sm:p-2 text-primary-foreground shadow-sm">
+            <Link href="/about" className="rounded-lg bg-primary p-1.5 sm:p-2 text-primary-foreground shadow-sm hover:opacity-90 transition">
               <Train className="h-5 w-5 sm:h-6 sm:w-6" />
-            </div>
+            </Link>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-headline text-lg sm:text-xl font-bold text-primary tracking-tight">
+                <Link href="/" className="font-headline text-lg sm:text-xl font-bold text-primary tracking-tight hover:opacity-90">
                   SafeTracks
-                </h1>
+                </Link>
                 <Badge
                   variant={pkpConfig.isLive ? 'default' : 'secondary'}
                   className="text-[10px] px-1.5 py-0 h-4 font-mono hidden xs:flex items-center gap-1"
@@ -68,7 +69,14 @@ export function Header({
             </div>
           </div>
 
-          <div className="hidden items-center gap-3 md:flex">
+          <div className="hidden items-center gap-2.5 md:flex">
+            <Link href="/about">
+              <Button variant="ghost" size="sm" className="text-xs h-9 gap-1.5 text-muted-foreground hover:text-foreground">
+                <Info className="h-4 w-4" />
+                <span>O projekcie / Mobile</span>
+              </Button>
+            </Link>
+
             <div className="flex items-center space-x-2 bg-muted/60 px-3 py-1.5 rounded-full border">
               <Switch
                 id="enthusiast-mode"
@@ -88,7 +96,7 @@ export function Header({
               className="text-xs h-9 gap-1.5"
             >
               <MessageSquarePlus className="h-4 w-4 text-amber-600" />
-              <span>Zgłoś dzikie przejście</span>
+              <span>Zgłoś przejście</span>
             </Button>
 
             <Button
@@ -128,6 +136,13 @@ export function Header({
                       {pkpConfig.isLive ? 'PKP PLK Live' : 'Symulacja'}
                     </Badge>
                   </div>
+
+                  <Link href="/about" className="w-full">
+                    <Button variant="outline" className="w-full justify-start text-xs h-9 gap-2">
+                      <Smartphone className="h-4 w-4 text-emerald-500" />
+                      <span>O projekcie & PWA Mobile</span>
+                    </Button>
+                  </Link>
 
                   <div className="flex items-center justify-between bg-muted/60 p-3 rounded-lg">
                     <Label htmlFor="enthusiast-mode-mobile" className="text-sm font-medium flex items-center gap-1.5">
