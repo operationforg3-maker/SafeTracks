@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E2235" />
+      <stop offset="100%" stop-color="#2E3148" />
+    </linearGradient>
+    <linearGradient id="amberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFD54F" />
+      <stop offset="100%" stop-color="#FFB300" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background with rounded corners -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  
+  <!-- Outer subtle radar ring -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#FFB300" stroke-width="6" opacity="0.25" stroke-dasharray="16 12" />
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#FFB300" stroke-width="4" opacity="0.35" />
+
+  <!-- Railway Tracks (converging perspective) -->
+  <path d="M160 410 L220 180" stroke="#94A3B8" stroke-width="12" stroke-linecap="round" />
+  <path d="M352 410 L292 180" stroke="#94A3B8" stroke-width="12" stroke-linecap="round" />
+  
+  <!-- Sleepers (podkłady kolejowe) -->
+  <line x1="168" y1="380" x2="344" y2="380" stroke="#94A3B8" stroke-width="10" stroke-linecap="round" opacity="0.8" />
+  <line x1="184" y1="320" x2="328" y2="320" stroke="#94A3B8" stroke-width="9" stroke-linecap="round" opacity="0.8" />
+  <line x1="200" y1="260" x2="312" y2="260" stroke="#94A3B8" stroke-width="8" stroke-linecap="round" opacity="0.8" />
+  <line x1="214" y1="210" x2="298" y2="210" stroke="#94A3B8" stroke-width="7" stroke-linecap="round" opacity="0.8" />
+
+  <!-- Modern High-Speed Locomotive Face -->
+  <path d="M196 150 C196 110, 316 110, 316 150 L326 270 C326 295, 186 295, 186 270 Z" fill="url(#amberGrad)" />
+  
+  <!-- Train Windshield -->
+  <path d="M210 160 C210 145, 302 145, 302 160 L300 195 C300 202, 212 202, 212 195 Z" fill="#1E2235" />
+
+  <!-- High-Power Train Headlights -->
+  <circle cx="225" cy="255" r="14" fill="#FFFFFF" />
+  <circle cx="225" cy="255" r="8" fill="#FFFBEB" />
+  <circle cx="287" cy="255" r="14" fill="#FFFFFF" />
+  <circle cx="287" cy="255" r="8" fill="#FFFBEB" />
+  <circle cx="256" cy="135" r="10" fill="#FFFFFF" />
+
+  <!-- Emergency Safety Beacon (Flashing Red) -->
+  <circle cx="256" cy="95" r="18" fill="#EF4444" />
+  <circle cx="256" cy="95" r="9" fill="#FEE2E2" />
+</svg>

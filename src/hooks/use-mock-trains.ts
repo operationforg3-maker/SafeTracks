@@ -3,34 +3,31 @@
 import { useState, useEffect } from 'react';
 import { mockTrains as initialTrains } from '@/lib/data';
 import type { Train } from '@/lib/types';
+import { fetchLiveTrains } from '@/services/pkp-api';
 
 export const useMockTrains = () => {
   const [trains, setTrains] = useState<Train[]>(initialTrains);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTrains(currentTrains => 
-        currentTrains.map(train => {
-          if (train.path.length <= 1) return train;
-
-          const { pathIndex } = train;
-          const nextPathIndex = (pathIndex + 1) % train.path.length;
-
-          // Simple movement along the path
-          const newPosition = train.path[nextPathIndex];
-          
-          return {
-            ...train,
-            currentPosition: newPosition,
-            pathIndex: nextPathIndex,
-            lastUpdate: Date.now()
-          };
-        })
-      );
-    }, 5000); // Update every 5 seconds
+    // Okresowe odpytywanie API PKP PLK / silnika predykcyjnego co 4 sekundy
+    const interval = setInterval(async () => {
+      try {
+        setTrains((current) => {
+          // Asynchroniczne wywołanie z zachowaniem płynności
+          fetchLiveTrains(current).then((updated) => {
+            setTrains(updated);
+          });
+          return current;
+        });
+      } catch (err) {
+        console.warn('[useMockTrains] Błąd aktualizacji pozycji pociągów:', err);
+      }
+    }, 4000);
 
     return () => clearInterval(interval);
   }, []);
 
   return trains;
 };
+
+export const useLiveTrains = useMockTrains;

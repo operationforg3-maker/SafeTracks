@@ -1,5 +1,3 @@
-'use server';
-
 /**
  * @fileOverview Calculates the estimated time of arrival (ETA) of trains at a user's location,
  * compensating for API delays by predicting train positions.

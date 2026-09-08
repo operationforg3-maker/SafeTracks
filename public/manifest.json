@@ -1,0 +1,54 @@
+{
+  "name": "SafeTracks — Bezpieczeństwo i Radar Kolejowy",
+  "short_name": "SafeTracks",
+  "description": "System ochrony pieszych przed potrąceniem na torach kolejowych oraz radar dla pasjonatów trainspottingu.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#2E3148",
+  "theme_color": "#2E3148",
+  "lang": "pl",
+  "categories": ["safety", "travel", "navigation", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "🚨 Alarm SOS 112",
+      "short_name": "SOS",
+      "description": "Wygeneruj natychmiastowe koordynaty dla służb ratunkowych",
+      "url": "/?action=sos"
+    },
+    {
+      "name": "🚆 Radar Pociągów",
+      "short_name": "Radar",
+      "description": "Sprawdź nadjeżdżające pociągi w Twojej okolicy",
+      "url": "/?action=radar"
+    },
+    {
+      "name": "⚠️ Zgłoś Dzikie Przejście",
+      "short_name": "Zgłoś",
+      "description": "Oznacz niebezpieczne przejście przez tory lub przeszkodę",
+      "url": "/?action=report"
+    }
+  ]
+}

@@ -1,5 +1,3 @@
-'use server';
-
 /**
  * @fileOverview A train position prediction AI agent.
  *
