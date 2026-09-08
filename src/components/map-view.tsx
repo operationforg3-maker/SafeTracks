@@ -8,6 +8,7 @@ interface MapViewProps {
   trains: Train[];
   enthusiastMode: boolean;
   onTrainSelect?: (train: Train) => void;
+  onOpenSpotDialog?: () => void;
 }
 
 const DynamicRailwayMap = dynamic(
@@ -15,17 +16,17 @@ const DynamicRailwayMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-full w-full items-center justify-center bg-card text-muted-foreground">
+      <div className="flex h-full w-full items-center justify-center bg-slate-950 text-slate-400">
         <div className="flex flex-col items-center gap-2">
-          <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <span className="text-xs">Ładowanie mapy kolejowej OpenRailwayMap...</span>
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span className="text-xs font-mono">Inicjalizacja radaru szlakowego SafeTracks...</span>
         </div>
       </div>
     ),
   }
 );
 
-export function MapView({ trains, enthusiastMode, onTrainSelect }: MapViewProps) {
+export function MapView({ trains, enthusiastMode, onTrainSelect, onOpenSpotDialog }: MapViewProps) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -34,10 +35,10 @@ export function MapView({ trains, enthusiastMode, onTrainSelect }: MapViewProps)
 
   if (!isMounted) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-card text-muted-foreground">
+      <div className="flex h-full w-full items-center justify-center bg-slate-950 text-slate-400">
         <div className="flex flex-col items-center gap-2">
-          <div className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <span className="text-xs">Ładowanie mapy kolejowej OpenRailwayMap...</span>
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span className="text-xs font-mono">Inicjalizacja radaru szlakowego SafeTracks...</span>
         </div>
       </div>
     );
@@ -49,6 +50,7 @@ export function MapView({ trains, enthusiastMode, onTrainSelect }: MapViewProps)
         trains={trains}
         enthusiastMode={enthusiastMode}
         onTrainSelect={onTrainSelect}
+        onOpenSpotDialog={onOpenSpotDialog}
       />
     </div>
   );
