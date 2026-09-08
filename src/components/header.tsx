@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Siren, Menu, Train, MessageSquarePlus, Radio, Sparkles, Info, Smartphone } from 'lucide-react';
+import { Siren, Menu, Train, MessageSquarePlus, Radio, Sparkles, Home, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -38,12 +38,12 @@ export function Header({
       <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 sm:h-16 items-center justify-between px-3 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-3">
-            <Link href="/about" className="rounded-lg bg-primary p-1.5 sm:p-2 text-primary-foreground shadow-sm hover:opacity-90 transition">
+            <Link href="/" className="rounded-lg bg-primary p-1.5 sm:p-2 text-primary-foreground shadow-sm hover:opacity-90 transition">
               <Train className="h-5 w-5 sm:h-6 sm:w-6" />
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <Link href="/" className="font-headline text-lg sm:text-xl font-bold text-primary tracking-tight hover:opacity-90">
+                <Link href="/app" className="font-headline text-lg sm:text-xl font-bold text-primary tracking-tight hover:opacity-90">
                   SafeTracks
                 </Link>
                 <Badge
@@ -70,10 +70,10 @@ export function Header({
           </div>
 
           <div className="hidden items-center gap-2.5 md:flex">
-            <Link href="/about">
+            <Link href="/">
               <Button variant="ghost" size="sm" className="text-xs h-9 gap-1.5 text-muted-foreground hover:text-foreground">
-                <Info className="h-4 w-4" />
-                <span>O projekcie / Mobile</span>
+                <Home className="h-4 w-4" />
+                <span>Strona Główna</span>
               </Button>
             </Link>
 
@@ -137,10 +137,10 @@ export function Header({
                     </Badge>
                   </div>
 
-                  <Link href="/about" className="w-full">
+                  <Link href="/" className="w-full">
                     <Button variant="outline" className="w-full justify-start text-xs h-9 gap-2">
-                      <Smartphone className="h-4 w-4 text-emerald-500" />
-                      <span>O projekcie & PWA Mobile</span>
+                      <Home className="h-4 w-4 text-primary" />
+                      <span>Strona Główna / O Projekcie</span>
                     </Button>
                   </Link>
 

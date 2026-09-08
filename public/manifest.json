@@ -2,7 +2,7 @@
   "name": "SafeTracks — Bezpieczeństwo i Radar Kolejowy",
   "short_name": "SafeTracks",
   "description": "System ochrony pieszych przed potrąceniem na torach kolejowych oraz radar dla pasjonatów trainspottingu.",
-  "start_url": "/?source=pwa",
+  "start_url": "/app?source=pwa",
   "scope": "/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
