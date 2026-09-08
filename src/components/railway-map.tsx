@@ -49,6 +49,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
   const userRadiusCircleRef = useRef<any>(null);
   const baseTileLayerRef = useRef<any>(null);
   const railwayLayerRef = useRef<any>(null);
+  const hasCenteredOnUserRef = useRef<boolean>(false);
 
   const { position: userPosition } = useGeolocation();
   const [mapStyle, setMapStyle] = useState<MapStyleOption>('dark'); // Domyślnie profesjonalny tryb Dark Radar
@@ -243,6 +244,12 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         }).addTo(map);
       } else {
         userRadiusCircleRef.current.setLatLng(userLatLng);
+      }
+
+      // Automatyczne wycentrowanie mapy na lokalizacji użytkownika przy pierwszym uzyskaniu GPS
+      if (!hasCenteredOnUserRef.current) {
+        map.setView(userLatLng, 15, { animate: true });
+        hasCenteredOnUserRef.current = true;
       }
     });
   }, [userPosition, mapReady]);
