@@ -1,6 +1,6 @@
 import { Train, ProximityAlertState, AlertLevel } from '@/lib/types';
 import { railwayCrossings } from '@/lib/data';
-import { calculateDistanceMeters } from './pkp-api';
+import { calculateDistanceMeters, calculateBearing } from './pkp-api';
 import { alertAudio } from './alert-audio';
 
 export interface UserCoordinates {
@@ -59,17 +59,25 @@ export function evaluateProximitySafety(
       train.currentPosition.lng
     );
 
-    // Szacowany czas dotarcia pociągu do punktu użytkownika
     const speed = Math.max(train.speed, 5); // min 5 m/s
     const etaSeconds = dist / speed;
+
+    // Sprawdź czy pociąg faktycznie zbliża się do pieszego (odległość maleje)
+    const isApproaching = train.heading !== undefined
+      ? (calculateBearing(train.currentPosition.lat, train.currentPosition.lng, userPos.lat, userPos.lng) - train.heading + 360) % 360
+      : 0;
+    const isMovingTowards = isApproaching <= 90 || isApproaching >= 270;
 
     if (dist < minDistanceMeters) {
       minDistanceMeters = dist;
     }
 
-    if (etaSeconds < minEtaSeconds) {
-      minEtaSeconds = etaSeconds;
-      mostCriticalTrain = train;
+    // Alarmujemy tylko o pociągach, które zbliżają się (lub są w bezpośredniej strefie kolizyjnej < 50m)
+    if (isMovingTowards || dist < 50) {
+      if (etaSeconds < minEtaSeconds) {
+        minEtaSeconds = etaSeconds;
+        mostCriticalTrain = train;
+      }
     }
   }
 

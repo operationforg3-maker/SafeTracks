@@ -224,3 +224,28 @@ export async function fetchLiveTrains(
     };
   });
 }
+
+/**
+ * Sprawdza czy pociąg faktycznie ZBLIŻA SIĘ do użytkownika na podstawie wektora kierunku.
+ * Zwraca true jeśli odległość maleje (pociąg jedzie w stronę pieszego), false jeśli się oddala.
+ */
+export function isTrainApproaching(
+  userLat: number,
+  userLng: number,
+  trainLat: number,
+  trainLng: number,
+  trainHeading: number
+): boolean {
+  // Oblicz kąt od pociągu do użytkownika
+  const bearingToUser = calculateBearing(trainLat, trainLng, userLat, userLng);
+
+  // Oblicz różnicę kątową pomiędzy kursem pociągu a kierunkiem na pieszego
+  let diff = Math.abs(trainHeading - bearingToUser);
+  if (diff > 180) {
+    diff = 360 - diff;
+  }
+
+  // Jeśli różnica kątowa <= 90 stopni, pociąg porusza się w stronę pieszego (odległość maleje)
+  // Jeśli > 90 stopni, pociąg już minął pieszego i się oddala
+  return diff <= 90;
+}

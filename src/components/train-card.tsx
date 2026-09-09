@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from '@/lib/utils';
 import type { Train as TrainType, AlertLevel, PredictiveETAOutput } from '@/lib/types';
 import type { Position } from '@/hooks/use-geolocation';
-import { calculateDistanceMeters } from '@/services/pkp-api';
+import { calculateDistanceMeters, isTrainApproaching } from '@/services/pkp-api';
 
 interface TrainCardProps {
   train: TrainType;
@@ -40,6 +40,17 @@ export function TrainCard({ train, userPosition, enthusiastMode, onSelect }: Tra
     );
   }, [userPosition, train.currentPosition]);
 
+  const isApproaching = useMemo(() => {
+    if (!userPosition) return true;
+    return isTrainApproaching(
+      userPosition.lat,
+      userPosition.lng,
+      train.currentPosition.lat,
+      train.currentPosition.lng,
+      train.heading || 0
+    );
+  }, [userPosition, train.currentPosition, train.heading]);
+
   const directEtaSeconds = useMemo(() => {
     if (!directDistanceMeters) return null;
     const speed = Math.max(train.speed, 5);
@@ -50,13 +61,17 @@ export function TrainCard({ train, userPosition, enthusiastMode, onSelect }: Tra
 
   useEffect(() => {
     if (directEtaSeconds !== null) {
+      // Jeśli pociąg się oddala i minął już pieszego (> 150m), nie jest to sytuacja krytyczna
+      const isCritical = isApproaching && directEtaSeconds <= 35;
+      const isWarning = isApproaching && directEtaSeconds <= 120;
+
       setEtaData({
         estimatedArrivalTime: directEtaSeconds,
-        isSafe: directEtaSeconds > 35,
-        alertLevel: directEtaSeconds <= 35 ? 'critical' : directEtaSeconds <= 120 ? 'warning' : 'safe',
+        isSafe: !isCritical,
+        alertLevel: isCritical ? 'critical' : isWarning ? 'warning' : 'safe',
       });
     }
-  }, [directEtaSeconds]);
+  }, [directEtaSeconds, isApproaching]);
 
   const alertLevel: AlertLevel = useMemo(() => {
     if (!userPosition) return 'safe';
@@ -105,6 +120,19 @@ export function TrainCard({ train, userPosition, enthusiastMode, onSelect }: Tra
             <Badge variant="outline" className={cn("text-[10px] font-mono px-1.5 py-0 h-4", typeBadgeColor)}>
               {train.type}
             </Badge>
+            {userPosition && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-[9px] px-1.5 py-0 h-4 font-sans font-medium",
+                  isApproaching
+                    ? "border-amber-500/50 bg-amber-500/10 text-amber-400"
+                    : "border-slate-600 bg-slate-800/60 text-slate-400"
+                )}
+              >
+                {isApproaching ? "➔ Zbliża się" : "⬅ Oddala się"}
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
             {userPosition && alertIcons[alertLevel]}

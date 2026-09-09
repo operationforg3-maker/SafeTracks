@@ -10,7 +10,7 @@ import { Slider } from './ui/slider';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { calculateDistanceMeters, findNearestStations } from '@/services/pkp-api';
+import { calculateDistanceMeters, findNearestStations, isTrainApproaching } from '@/services/pkp-api';
 
 interface DashboardProps {
   trains: Train[];
@@ -53,6 +53,13 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
       });
 
       list.sort((a, b) => {
+        const aApproaching = isTrainApproaching(position.lat, position.lng, a.currentPosition.lat, a.currentPosition.lng, a.heading || 0);
+        const bApproaching = isTrainApproaching(position.lat, position.lng, b.currentPosition.lat, b.currentPosition.lng, b.heading || 0);
+
+        // Zbliżające się pociągi ZAWSZE na samej górze radaru
+        if (aApproaching && !bApproaching) return -1;
+        if (!aApproaching && bApproaching) return 1;
+
         const distA = calculateDistanceMeters(position.lat, position.lng, a.currentPosition.lat, a.currentPosition.lng);
         const distB = calculateDistanceMeters(position.lat, position.lng, b.currentPosition.lat, b.currentPosition.lng);
         return distA - distB;
