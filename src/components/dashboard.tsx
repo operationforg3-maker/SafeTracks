@@ -21,7 +21,7 @@ interface DashboardProps {
 
 export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDialog }: DashboardProps) {
   const { position, error: geoError } = useGeolocation();
-  const [timeWindow, setTimeWindow] = useState([60]);
+  const [timeWindow, setTimeWindow] = useState([10]);
   const [operatorFilter, setOperatorFilter] = useState<string>('all');
 
   // Wykrywanie najbliższych posterunków / stacji PKP PLK dla pozycji GPS
@@ -31,7 +31,7 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
     return stations.length > 0 ? stations[0] : null;
   }, [position]);
 
-  // Filtrowanie i sortowanie pociągów (najbliższe użytkownikowi na samej górze)
+  // Filtrowanie i sortowanie pociągów (najbliższe użytkownikowi na samej górze i w wybranym horyzoncie czasowym)
   const sortedAndFilteredTrains = useMemo(() => {
     let list = [...trains];
 
@@ -44,6 +44,14 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
     }
 
     if (position) {
+      const maxSeconds = timeWindow[0] * 60;
+      list = list.filter((t) => {
+        const dist = calculateDistanceMeters(position.lat, position.lng, t.currentPosition.lat, t.currentPosition.lng);
+        const speed = Math.max(t.speed, 5);
+        const eta = dist / speed;
+        return eta <= maxSeconds;
+      });
+
       list.sort((a, b) => {
         const distA = calculateDistanceMeters(position.lat, position.lng, a.currentPosition.lat, a.currentPosition.lng);
         const distB = calculateDistanceMeters(position.lat, position.lng, b.currentPosition.lat, b.currentPosition.lng);
@@ -52,7 +60,7 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
     }
 
     return list;
-  }, [trains, operatorFilter, position]);
+  }, [trains, operatorFilter, position, timeWindow]);
 
   return (
     <div className="flex h-full flex-col bg-card/95 backdrop-blur-sm">
