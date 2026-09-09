@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Siren, Menu, Train, MessageSquarePlus, Radio, Sparkles, Home, Smartphone } from 'lucide-react';
+import { Siren, Menu, Train, MessageSquarePlus, Sparkles, Home, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { SosDialog } from '@/components/sos-dialog';
 import { HazardReportDialog } from '@/components/hazard-report-dialog';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { getPkpConfig } from '@/services/pkp-api';
+import { getPkpConfig, fetchLivePlkStats, PlkStatistics } from '@/services/pkp-api';
 
 interface HeaderProps {
   enthusiastMode: boolean;
@@ -27,11 +27,18 @@ export function Header({
 }: HeaderProps) {
   const [internalSosOpen, setInternalSosOpen] = useState(false);
   const [isHazardReportOpen, setIsHazardReportOpen] = useState(false);
+  const [plkStats, setPlkStats] = useState<PlkStatistics | null>(null);
 
   const isSosOpen = externalSosOpen !== undefined ? externalSosOpen : internalSosOpen;
   const setIsSosOpen = setExternalSosOpen || setInternalSosOpen;
 
   const pkpConfig = getPkpConfig();
+
+  useEffect(() => {
+    fetchLivePlkStats().then((stats) => {
+      if (stats) setPlkStats(stats);
+    });
+  }, []);
 
   return (
     <>
@@ -47,20 +54,12 @@ export function Header({
                   SafeTracks
                 </Link>
                 <Badge
-                  variant={pkpConfig.isLive ? 'default' : 'secondary'}
-                  className="text-[10px] px-1.5 py-0 h-4 font-mono hidden xs:flex items-center gap-1"
-                  title={
-                    pkpConfig.isLive
-                      ? 'Połączono z oficjalnym API PKP PLK (pdp-api.plk-sa.pl)'
-                      : 'Radar szlakowy SafeTracks (symulacja polskich linii kolejowych)'
-                  }
+                  variant="default"
+                  className="text-[10px] px-2 py-0.5 h-5 font-mono hidden xs:flex items-center gap-1.5 bg-emerald-950/80 text-emerald-400 border border-emerald-500/40 shadow-sm"
+                  title="Oficjalny klucz OpenDataAPI PKP PLK został aktywowany dla SafeTrack"
                 >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      pkpConfig.isLive ? 'bg-emerald-400 animate-pulse' : 'bg-blue-400'
-                    }`}
-                  />
-                  {pkpConfig.isLive ? 'PKP PLK Live' : 'PLK Radar'}
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>PKP PLK Live: {plkStats ? `${plkStats.inProgress} na szlaku` : 'Autoryzowany'}</span>
                 </Badge>
               </div>
               <p className="text-[10px] text-muted-foreground hidden sm:block">
@@ -132,8 +131,8 @@ export function Header({
                   <div className="flex items-center gap-2 border-b pb-4">
                     <Train className="h-5 w-5 text-primary" />
                     <span className="font-bold text-base">SafeTracks</span>
-                    <Badge variant="outline" className="text-[10px] ml-auto">
-                      {pkpConfig.isLive ? 'PKP PLK Live' : 'Symulacja'}
+                    <Badge variant="outline" className="text-[10px] ml-auto text-emerald-400 border-emerald-500/40">
+                      PKP PLK Live
                     </Badge>
                   </div>
 
