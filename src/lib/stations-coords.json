@@ -1,0 +1,538 @@
+{
+  "warszawa centralna": {
+    "lat": 52.2288,
+    "lng": 21.0032
+  },
+  "warszawa wschodnia": {
+    "lat": 52.2512,
+    "lng": 21.052
+  },
+  "warszawa zachodnia": {
+    "lat": 52.2198,
+    "lng": 20.9634
+  },
+  "warszawa gdańska": {
+    "lat": 52.258,
+    "lng": 20.985
+  },
+  "warszawa włochy": {
+    "lat": 52.2045,
+    "lng": 20.9082
+  },
+  "warszawa ursus": {
+    "lat": 52.1931,
+    "lng": 20.8712
+  },
+  "warszawa praga": {
+    "lat": 52.2685,
+    "lng": 21.0335
+  },
+  "warszawa służewiec": {
+    "lat": 52.1795,
+    "lng": 20.994
+  },
+  "kraków główny": {
+    "lat": 50.066,
+    "lng": 19.948
+  },
+  "kraków płaszów": {
+    "lat": 50.035,
+    "lng": 19.98
+  },
+  "katowice": {
+    "lat": 50.257,
+    "lng": 19.017
+  },
+  "gliwice": {
+    "lat": 50.298,
+    "lng": 18.681
+  },
+  "sosnowiec główny": {
+    "lat": 50.278,
+    "lng": 19.128
+  },
+  "częstochowa": {
+    "lat": 50.811,
+    "lng": 19.124
+  },
+  "gdańsk główny": {
+    "lat": 54.356,
+    "lng": 18.644
+  },
+  "gdańsk wrzeszcz": {
+    "lat": 54.381,
+    "lng": 18.604
+  },
+  "gdańsk oliwa": {
+    "lat": 54.406,
+    "lng": 18.571
+  },
+  "sopot": {
+    "lat": 54.442,
+    "lng": 18.561
+  },
+  "gdynia główna": {
+    "lat": 54.52,
+    "lng": 18.53
+  },
+  "poznań główny": {
+    "lat": 52.402,
+    "lng": 16.912
+  },
+  "wrocław główny": {
+    "lat": 51.098,
+    "lng": 17.037
+  },
+  "opole główne": {
+    "lat": 50.662,
+    "lng": 17.927
+  },
+  "łódź fabryczna": {
+    "lat": 51.769,
+    "lng": 19.469
+  },
+  "łódź widzew": {
+    "lat": 51.762,
+    "lng": 19.539
+  },
+  "łódź kaliska": {
+    "lat": 51.758,
+    "lng": 19.431
+  },
+  "szczecin główny": {
+    "lat": 53.418,
+    "lng": 14.551
+  },
+  "białystok": {
+    "lat": 53.136,
+    "lng": 23.138
+  },
+  "lublin główny": {
+    "lat": 51.232,
+    "lng": 22.569
+  },
+  "rzeszów główny": {
+    "lat": 50.043,
+    "lng": 22.006
+  },
+  "bydgoszcz główna": {
+    "lat": 53.136,
+    "lng": 17.994
+  },
+  "toruń główny": {
+    "lat": 52.999,
+    "lng": 18.618
+  },
+  "kielce główne": {
+    "lat": 50.873,
+    "lng": 20.62
+  },
+  "radom główny": {
+    "lat": 51.391,
+    "lng": 21.155
+  },
+  "olsztyn główny": {
+    "lat": 53.782,
+    "lng": 20.505
+  },
+  "zielona góra główna": {
+    "lat": 51.946,
+    "lng": 15.514
+  },
+  "gorzów wielkopolski": {
+    "lat": 52.729,
+    "lng": 15.228
+  },
+  "legnica": {
+    "lat": 51.214,
+    "lng": 16.166
+  },
+  "wałbrzych główny": {
+    "lat": 50.741,
+    "lng": 16.273
+  },
+  "bielsko-biała główna": {
+    "lat": 49.828,
+    "lng": 19.047
+  },
+  "rybnik": {
+    "lat": 50.089,
+    "lng": 18.543
+  },
+  "tychy": {
+    "lat": 50.128,
+    "lng": 18.971
+  },
+  "koszalin": {
+    "lat": 54.187,
+    "lng": 16.173
+  },
+  "słupsk": {
+    "lat": 54.464,
+    "lng": 17.021
+  },
+  "kołobrzeg": {
+    "lat": 54.179,
+    "lng": 15.568
+  },
+  "świnoujście": {
+    "lat": 53.905,
+    "lng": 14.269
+  },
+  "elbląg": {
+    "lat": 54.152,
+    "lng": 19.418
+  },
+  "płock": {
+    "lat": 52.554,
+    "lng": 19.712
+  },
+  "włocławek": {
+    "lat": 52.651,
+    "lng": 19.06
+  },
+  "kalisz": {
+    "lat": 51.748,
+    "lng": 18.061
+  },
+  "ostrów wielkopolski": {
+    "lat": 51.648,
+    "lng": 17.808
+  },
+  "gniezno": {
+    "lat": 52.529,
+    "lng": 17.604
+  },
+  "leszno": {
+    "lat": 51.841,
+    "lng": 16.571
+  },
+  "piła główna": {
+    "lat": 53.143,
+    "lng": 16.745
+  },
+  "inowrocław": {
+    "lat": 52.805,
+    "lng": 18.271
+  },
+  "kutno": {
+    "lat": 52.228,
+    "lng": 19.356
+  },
+  "skierniewice": {
+    "lat": 51.956,
+    "lng": 20.143
+  },
+  "żyrardów": {
+    "lat": 52.053,
+    "lng": 20.443
+  },
+  "grodzisk mazowiecki": {
+    "lat": 52.1124,
+    "lng": 20.6358
+  },
+  "pruszków": {
+    "lat": 52.1672,
+    "lng": 20.8065
+  },
+  "piastów": {
+    "lat": 52.1795,
+    "lng": 20.841
+  },
+  "legionowo": {
+    "lat": 52.398,
+    "lng": 20.932
+  },
+  "nowy dwór mazowiecki": {
+    "lat": 52.431,
+    "lng": 20.718
+  },
+  "modlin": {
+    "lat": 52.448,
+    "lng": 20.698
+  },
+  "ciechanów": {
+    "lat": 52.871,
+    "lng": 20.612
+  },
+  "mława": {
+    "lat": 53.118,
+    "lng": 20.368
+  },
+  "działdowo": {
+    "lat": 53.238,
+    "lng": 20.178
+  },
+  "iława główna": {
+    "lat": 53.589,
+    "lng": 19.578
+  },
+  "malbork": {
+    "lat": 54.032,
+    "lng": 19.038
+  },
+  "tczew": {
+    "lat": 54.093,
+    "lng": 18.775
+  },
+  "mińsk mazowiecki": {
+    "lat": 52.179,
+    "lng": 21.568
+  },
+  "siedlce": {
+    "lat": 52.163,
+    "lng": 22.274
+  },
+  "łuków": {
+    "lat": 51.928,
+    "lng": 22.378
+  },
+  "biała podlaska": {
+    "lat": 52.029,
+    "lng": 23.125
+  },
+  "terespol": {
+    "lat": 52.072,
+    "lng": 23.606
+  },
+  "dęblin": {
+    "lat": 51.558,
+    "lng": 21.854
+  },
+  "puławy miasto": {
+    "lat": 51.417,
+    "lng": 21.986
+  },
+  "tarnów": {
+    "lat": 50.007,
+    "lng": 20.985
+  },
+  "nowy sącz": {
+    "lat": 49.609,
+    "lng": 20.702
+  },
+  "przemyśl główny": {
+    "lat": 49.783,
+    "lng": 22.776
+  },
+  "zamość": {
+    "lat": 50.718,
+    "lng": 23.256
+  },
+  "chełm": {
+    "lat": 51.141,
+    "lng": 23.491
+  },
+  "skarżysko-kamienna": {
+    "lat": 51.114,
+    "lng": 20.867
+  },
+  "ostrowiec świętokrzyski": {
+    "lat": 50.931,
+    "lng": 21.397
+  },
+  "sandomierz": {
+    "lat": 50.672,
+    "lng": 21.764
+  },
+  "stalowa wola rozwadów": {
+    "lat": 50.597,
+    "lng": 22.038
+  },
+  "mielec": {
+    "lat": 50.292,
+    "lng": 21.431
+  },
+  "krosno": {
+    "lat": 49.689,
+    "lng": 21.767
+  },
+  "jasło": {
+    "lat": 49.742,
+    "lng": 21.472
+  },
+  "sanok": {
+    "lat": 49.559,
+    "lng": 22.214
+  },
+  "zagórz": {
+    "lat": 49.516,
+    "lng": 22.261
+  },
+  "zakopane": {
+    "lat": 49.299,
+    "lng": 19.961
+  },
+  "nowy targ": {
+    "lat": 49.478,
+    "lng": 20.023
+  },
+  "chabówka": {
+    "lat": 49.596,
+    "lng": 19.932
+  },
+  "sucha beskidzka": {
+    "lat": 49.742,
+    "lng": 19.592
+  },
+  "wadowice": {
+    "lat": 49.882,
+    "lng": 19.497
+  },
+  "oświęcim": {
+    "lat": 50.033,
+    "lng": 19.201
+  },
+  "czechowice-dziedzice": {
+    "lat": 49.907,
+    "lng": 19.006
+  },
+  "żywiec": {
+    "lat": 49.688,
+    "lng": 19.182
+  },
+  "cieszyn": {
+    "lat": 49.748,
+    "lng": 18.636
+  },
+  "wisła uzdrowisko": {
+    "lat": 49.658,
+    "lng": 18.857
+  },
+  "zawiercie": {
+    "lat": 50.487,
+    "lng": 19.423
+  },
+  "myszków": {
+    "lat": 50.574,
+    "lng": 19.324
+  },
+  "dąbrowa górnicza": {
+    "lat": 50.323,
+    "lng": 19.188
+  },
+  "będzin miasto": {
+    "lat": 50.324,
+    "lng": 19.129
+  },
+  "zabrze": {
+    "lat": 50.301,
+    "lng": 18.789
+  },
+  "ruda śląska": {
+    "lat": 50.309,
+    "lng": 18.868
+  },
+  "chorzów batory": {
+    "lat": 50.281,
+    "lng": 18.969
+  },
+  "bytom": {
+    "lat": 50.347,
+    "lng": 18.908
+  },
+  "tarnowskie góry": {
+    "lat": 50.443,
+    "lng": 18.862
+  },
+  "lubliniec": {
+    "lat": 50.669,
+    "lng": 18.683
+  },
+  "kluczbork": {
+    "lat": 50.974,
+    "lng": 18.216
+  },
+  "kędzierzyn-koźle": {
+    "lat": 50.344,
+    "lng": 18.219
+  },
+  "racibórz": {
+    "lat": 50.089,
+    "lng": 18.225
+  },
+  "wodzisław śląski": {
+    "lat": 50.001,
+    "lng": 18.471
+  },
+  "nysa": {
+    "lat": 50.478,
+    "lng": 17.337
+  },
+  "kłodzko główne": {
+    "lat": 50.449,
+    "lng": 16.657
+  },
+  "jelenia góra": {
+    "lat": 50.902,
+    "lng": 15.751
+  },
+  "szklarska poręba górna": {
+    "lat": 50.832,
+    "lng": 15.526
+  },
+  "zgorzelec": {
+    "lat": 51.148,
+    "lng": 15.011
+  },
+  "bolesławiec": {
+    "lat": 51.267,
+    "lng": 15.578
+  },
+  "lubin": {
+    "lat": 51.401,
+    "lng": 16.208
+  },
+  "głogów": {
+    "lat": 51.666,
+    "lng": 16.094
+  },
+  "kostrzyn": {
+    "lat": 52.592,
+    "lng": 14.654
+  },
+  "krzyż": {
+    "lat": 52.879,
+    "lng": 16.012
+  },
+  "szamotuły": {
+    "lat": 52.613,
+    "lng": 16.587
+  },
+  "jarocin": {
+    "lat": 51.972,
+    "lng": 17.498
+  },
+  "krotoszyn": {
+    "lat": 51.696,
+    "lng": 17.432
+  },
+  "września": {
+    "lat": 52.327,
+    "lng": 17.578
+  },
+  "konin": {
+    "lat": 52.234,
+    "lng": 18.256
+  },
+  "koło": {
+    "lat": 52.208,
+    "lng": 18.638
+  },
+  "łowicz główny": {
+    "lat": 52.112,
+    "lng": 19.938
+  },
+  "sochaczew": {
+    "lat": 52.227,
+    "lng": 20.241
+  },
+  "otwock": {
+    "lat": 52.103,
+    "lng": 21.265
+  },
+  "pilawa": {
+    "lat": 51.961,
+    "lng": 21.536
+  }
+}
