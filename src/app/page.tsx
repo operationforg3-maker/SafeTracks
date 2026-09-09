@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ShareDialog } from '@/components/share-dialog';
 import { 
   ShieldAlert, 
   Train, 
@@ -15,10 +17,14 @@ import {
   Activity, 
   CheckCircle2, 
   Volume2, 
-  PackageCheck 
+  PackageCheck,
+  Share2,
+  HeartHandshake
 } from 'lucide-react';
 
 export default function LandingPage() {
+  const [isShareOpen, setIsShareOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-red-500 selection:text-white">
       {/* Pasek nawigacyjny */}
@@ -41,7 +47,17 @@ export default function LandingPage() {
             <a href="#trainspotting" className="hover:text-white transition">Trainspotting</a>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsShareOpen(true)}
+              className="border-slate-800 hover:bg-slate-900 text-slate-200 text-xs h-9 gap-1.5"
+            >
+              <Share2 className="h-3.5 w-3.5 text-red-400" />
+              <span className="hidden xs:inline">Udostępnij</span>
+            </Button>
+
             <Link href="/app">
               <Button className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs sm:text-sm px-4 h-9 shadow-lg shadow-red-600/30 gap-1.5">
                 <span>Uruchom Aplikację</span>
@@ -83,10 +99,19 @@ export default function LandingPage() {
                 <span>Włącz Radar Online</span>
               </Button>
             </Link>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => setIsShareOpen(true)}
+              className="w-full sm:w-auto border-slate-700 hover:bg-slate-900 text-slate-200 h-12 px-6 text-base gap-2"
+            >
+              <Share2 className="h-5 w-5 text-red-400" />
+              <span>Udostępnij bliskim</span>
+            </Button>
             <a href="#pwa" className="w-full sm:w-auto">
-              <Button size="lg" variant="outline" className="w-full border-slate-700 hover:bg-slate-900 text-slate-200 h-12 px-6 text-base gap-2">
-                <Download className="h-5 w-5 text-amber-400" />
-                <span>Zainstaluj na telefonie</span>
+              <Button size="lg" variant="ghost" className="w-full text-slate-400 hover:text-white h-12 px-5 text-base gap-2">
+                <Download className="h-4 w-4 text-amber-400" />
+                <span>Instalacja PWA</span>
               </Button>
             </a>
           </div>
@@ -294,13 +319,22 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 flex flex-wrap gap-3">
                 <Link href="/app">
                   <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 px-6 text-sm gap-2">
                     <Smartphone className="h-4 w-4" />
                     <span>Otwórz i dodaj do telefonu</span>
                   </Button>
                 </Link>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setIsShareOpen(true)}
+                  className="border-slate-700 hover:bg-slate-800 text-slate-200 h-11 px-5 text-sm gap-2"
+                >
+                  <Share2 className="h-4 w-4 text-emerald-400" />
+                  <span>Udostępnij aplikację</span>
+                </Button>
               </div>
             </div>
           </div>
@@ -316,12 +350,22 @@ export default function LandingPage() {
             <span>— Otwarte bezpieczeństwo na szlakach kolejowych</span>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsShareOpen(true)}
+              className="hover:text-slate-300 transition flex items-center gap-1"
+            >
+              <Share2 className="h-3.5 w-3.5 text-red-400" />
+              <span>Udostępnij</span>
+            </button>
             <Link href="/app" className="hover:text-slate-300 transition">Radar Live</Link>
             <a href="https://pdp.plk-sa.pl" target="_blank" rel="noopener noreferrer" className="hover:text-slate-300 transition">Dane PKP PLK</a>
             <a href="https://112.gov.pl" target="_blank" rel="noopener noreferrer" className="hover:text-slate-300 transition">Numer Alarmowy 112</a>
           </div>
         </div>
       </footer>
+
+      {/* Dialog udostępniania aplikacji */}
+      <ShareDialog open={isShareOpen} onOpenChange={setIsShareOpen} />
     </div>
   );
 }
