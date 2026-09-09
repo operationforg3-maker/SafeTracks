@@ -1,0 +1,812 @@
+[
+  {
+    "id": 74633,
+    "name": "Będzin Miasto",
+    "lat": 50.324,
+    "lng": 19.129
+  },
+  {
+    "id": 40808,
+    "name": "Biała Podlaska",
+    "lat": 52.029,
+    "lng": 23.125
+  },
+  {
+    "id": 24000,
+    "name": "Białystok",
+    "lat": 53.136,
+    "lng": 23.138
+  },
+  {
+    "id": 76109,
+    "name": "Bielsko-Biała Główna",
+    "lat": 49.828,
+    "lng": 19.047
+  },
+  {
+    "id": 53850,
+    "name": "Bolesławiec",
+    "lat": 51.267,
+    "lng": 15.578
+  },
+  {
+    "id": 18408,
+    "name": "Bydgoszcz Główna",
+    "lat": 53.136,
+    "lng": 17.994
+  },
+  {
+    "id": 72306,
+    "name": "Bytom",
+    "lat": 50.347,
+    "lng": 18.908
+  },
+  {
+    "id": 78709,
+    "name": "Chabówka",
+    "lat": 49.596,
+    "lng": 19.932
+  },
+  {
+    "id": 50906,
+    "name": "Chełm",
+    "lat": 51.141,
+    "lng": 23.491
+  },
+  {
+    "id": 73106,
+    "name": "Chorzów Batory",
+    "lat": 50.281,
+    "lng": 18.969
+  },
+  {
+    "id": 36939,
+    "name": "Ciechanów",
+    "lat": 52.871,
+    "lng": 20.612
+  },
+  {
+    "id": 75655,
+    "name": "Cieszyn",
+    "lat": 49.748,
+    "lng": 18.636
+  },
+  {
+    "id": 76000,
+    "name": "Czechowice-Dziedzice",
+    "lat": 49.907,
+    "lng": 19.006
+  },
+  {
+    "id": 62653,
+    "name": "Częstochowa",
+    "lat": 50.811,
+    "lng": 19.124
+  },
+  {
+    "id": 74583,
+    "name": "Dąbrowa Górnicza",
+    "lat": 50.323,
+    "lng": 19.188
+  },
+  {
+    "id": 49809,
+    "name": "Dęblin",
+    "lat": 51.558,
+    "lng": 21.854
+  },
+  {
+    "id": 22442,
+    "name": "Działdowo",
+    "lat": 53.238,
+    "lng": 20.178
+  },
+  {
+    "id": 8151,
+    "name": "Elbląg",
+    "lat": 54.152,
+    "lng": 19.418
+  },
+  {
+    "id": 7500,
+    "name": "Gdańsk Główny",
+    "lat": 54.356,
+    "lng": 18.644
+  },
+  {
+    "id": 7583,
+    "name": "Gdańsk Oliwa",
+    "lat": 54.406,
+    "lng": 18.571
+  },
+  {
+    "id": 7534,
+    "name": "Gdańsk Wrzeszcz",
+    "lat": 54.381,
+    "lng": 18.604
+  },
+  {
+    "id": 5900,
+    "name": "Gdynia Główna",
+    "lat": 54.52,
+    "lng": 18.53
+  },
+  {
+    "id": 69708,
+    "name": "Gliwice",
+    "lat": 50.298,
+    "lng": 18.681
+  },
+  {
+    "id": 42200,
+    "name": "Głogów",
+    "lat": 51.666,
+    "lng": 16.094
+  },
+  {
+    "id": 30809,
+    "name": "Gniezno",
+    "lat": 52.529,
+    "lng": 17.604
+  },
+  {
+    "id": 13904,
+    "name": "Gorzów Wielkopolski",
+    "lat": 52.729,
+    "lng": 15.228
+  },
+  {
+    "id": 34165,
+    "name": "Grodzisk Mazowiecki",
+    "lat": 52.1124,
+    "lng": 20.6358
+  },
+  {
+    "id": 21808,
+    "name": "Iława Główna",
+    "lat": 53.589,
+    "lng": 19.578
+  },
+  {
+    "id": 18705,
+    "name": "Inowrocław",
+    "lat": 52.805,
+    "lng": 18.271
+  },
+  {
+    "id": 44701,
+    "name": "Jarocin",
+    "lat": 51.972,
+    "lng": 17.498
+  },
+  {
+    "id": 83410,
+    "name": "Jasło",
+    "lat": 49.742,
+    "lng": 21.472
+  },
+  {
+    "id": 55806,
+    "name": "Jelenia Góra",
+    "lat": 50.902,
+    "lng": 15.751
+  },
+  {
+    "id": 45245,
+    "name": "Kalisz",
+    "lat": 51.748,
+    "lng": 18.061
+  },
+  {
+    "id": 73312,
+    "name": "Katowice",
+    "lat": 50.257,
+    "lng": 19.017
+  },
+  {
+    "id": 67009,
+    "name": "Kędzierzyn-Koźle",
+    "lat": 50.344,
+    "lng": 18.219
+  },
+  {
+    "id": 63552,
+    "name": "Kielce Główne",
+    "lat": 50.873,
+    "lng": 20.62
+  },
+  {
+    "id": 61200,
+    "name": "Kluczbork",
+    "lat": 50.974,
+    "lng": 18.216
+  },
+  {
+    "id": 57307,
+    "name": "Kłodzko Główne",
+    "lat": 50.449,
+    "lng": 16.657
+  },
+  {
+    "id": 33191,
+    "name": "Koło",
+    "lat": 52.208,
+    "lng": 18.638
+  },
+  {
+    "id": 4101,
+    "name": "Kołobrzeg",
+    "lat": 54.179,
+    "lng": 15.568
+  },
+  {
+    "id": 33100,
+    "name": "Konin",
+    "lat": 52.234,
+    "lng": 18.256
+  },
+  {
+    "id": 13003,
+    "name": "Kostrzyn",
+    "lat": 52.592,
+    "lng": 14.654
+  },
+  {
+    "id": 4408,
+    "name": "Koszalin",
+    "lat": 54.187,
+    "lng": 16.173
+  },
+  {
+    "id": 80416,
+    "name": "Kraków Główny",
+    "lat": 50.066,
+    "lng": 19.948
+  },
+  {
+    "id": 79905,
+    "name": "Kraków Płaszów",
+    "lat": 50.035,
+    "lng": 19.98
+  },
+  {
+    "id": 83501,
+    "name": "Krosno",
+    "lat": 49.689,
+    "lng": 21.767
+  },
+  {
+    "id": 44008,
+    "name": "Krotoszyn",
+    "lat": 51.696,
+    "lng": 17.432
+  },
+  {
+    "id": 29108,
+    "name": "Krzyż",
+    "lat": 52.879,
+    "lng": 16.012
+  },
+  {
+    "id": 32201,
+    "name": "Kutno",
+    "lat": 52.228,
+    "lng": 19.356
+  },
+  {
+    "id": 36509,
+    "name": "Legionowo",
+    "lat": 52.398,
+    "lng": 20.932
+  },
+  {
+    "id": 53009,
+    "name": "Legnica",
+    "lat": 51.214,
+    "lng": 16.166
+  },
+  {
+    "id": 42606,
+    "name": "Leszno",
+    "lat": 51.841,
+    "lng": 16.571
+  },
+  {
+    "id": 53280,
+    "name": "Lubin",
+    "lat": 51.401,
+    "lng": 16.208
+  },
+  {
+    "id": 50500,
+    "name": "Lublin Główny",
+    "lat": 51.232,
+    "lng": 22.569
+  },
+  {
+    "id": 71407,
+    "name": "Lubliniec",
+    "lat": 50.669,
+    "lng": 18.683
+  },
+  {
+    "id": 32904,
+    "name": "Łowicz Główny",
+    "lat": 52.112,
+    "lng": 19.938
+  },
+  {
+    "id": 46458,
+    "name": "Łódź Fabryczna",
+    "lat": 51.769,
+    "lng": 19.469
+  },
+  {
+    "id": 46706,
+    "name": "Łódź Kaliska",
+    "lat": 51.758,
+    "lng": 19.431
+  },
+  {
+    "id": 46409,
+    "name": "Łódź Widzew",
+    "lat": 51.762,
+    "lng": 19.539
+  },
+  {
+    "id": 39909,
+    "name": "Łuków",
+    "lat": 51.928,
+    "lng": 22.378
+  },
+  {
+    "id": 7872,
+    "name": "Malbork",
+    "lat": 54.032,
+    "lng": 19.038
+  },
+  {
+    "id": 81505,
+    "name": "Mielec",
+    "lat": 50.292,
+    "lng": 21.431
+  },
+  {
+    "id": 39008,
+    "name": "Mińsk Mazowiecki",
+    "lat": 52.179,
+    "lng": 21.568
+  },
+  {
+    "id": 37226,
+    "name": "Mława",
+    "lat": 53.118,
+    "lng": 20.368
+  },
+  {
+    "id": 36467,
+    "name": "Modlin",
+    "lat": 52.448,
+    "lng": 20.698
+  },
+  {
+    "id": 75424,
+    "name": "Myszków",
+    "lat": 50.574,
+    "lng": 19.324
+  },
+  {
+    "id": 36459,
+    "name": "Nowy Dwór Mazowiecki",
+    "lat": 52.431,
+    "lng": 20.718
+  },
+  {
+    "id": 81901,
+    "name": "Nowy Sącz",
+    "lat": 49.609,
+    "lng": 20.702
+  },
+  {
+    "id": 78907,
+    "name": "Nowy Targ",
+    "lat": 49.478,
+    "lng": 20.023
+  },
+  {
+    "id": 56606,
+    "name": "Nysa",
+    "lat": 50.478,
+    "lng": 17.337
+  },
+  {
+    "id": 9209,
+    "name": "Olsztyn Główny",
+    "lat": 53.782,
+    "lng": 20.505
+  },
+  {
+    "id": 60608,
+    "name": "Opole Główne",
+    "lat": 50.662,
+    "lng": 17.927
+  },
+  {
+    "id": 49205,
+    "name": "Ostrowiec Świętokrzyski",
+    "lat": 50.931,
+    "lng": 21.397
+  },
+  {
+    "id": 45906,
+    "name": "Ostrów Wielkopolski",
+    "lat": 51.648,
+    "lng": 17.808
+  },
+  {
+    "id": 77107,
+    "name": "Oświęcim",
+    "lat": 50.033,
+    "lng": 19.201
+  },
+  {
+    "id": 38885,
+    "name": "Otwock",
+    "lat": 52.103,
+    "lng": 21.265
+  },
+  {
+    "id": 34124,
+    "name": "Piastów",
+    "lat": 52.1795,
+    "lng": 20.841
+  },
+  {
+    "id": 39206,
+    "name": "Pilawa",
+    "lat": 51.961,
+    "lng": 21.536
+  },
+  {
+    "id": 14407,
+    "name": "Piła Główna",
+    "lat": 53.143,
+    "lng": 16.745
+  },
+  {
+    "id": 32607,
+    "name": "Płock",
+    "lat": 52.554,
+    "lng": 19.712
+  },
+  {
+    "id": 30601,
+    "name": "Poznań Główny",
+    "lat": 52.402,
+    "lng": 16.912
+  },
+  {
+    "id": 34108,
+    "name": "Pruszków",
+    "lat": 52.1672,
+    "lng": 20.8065
+  },
+  {
+    "id": 84400,
+    "name": "Przemyśl Główny",
+    "lat": 49.783,
+    "lng": 22.776
+  },
+  {
+    "id": 50021,
+    "name": "Puławy Miasto",
+    "lat": 51.417,
+    "lng": 21.986
+  },
+  {
+    "id": 68700,
+    "name": "Racibórz",
+    "lat": 50.089,
+    "lng": 18.225
+  },
+  {
+    "id": 48355,
+    "name": "Radom Główny",
+    "lat": 51.391,
+    "lng": 21.155
+  },
+  {
+    "id": 69849,
+    "name": "Ruda Śląska",
+    "lat": 50.309,
+    "lng": 18.868
+  },
+  {
+    "id": 68205,
+    "name": "Rybnik",
+    "lat": 50.089,
+    "lng": 18.543
+  },
+  {
+    "id": 82669,
+    "name": "Rzeszów Główny",
+    "lat": 50.043,
+    "lng": 22.006
+  },
+  {
+    "id": 65300,
+    "name": "Sandomierz",
+    "lat": 50.672,
+    "lng": 21.764
+  },
+  {
+    "id": 83600,
+    "name": "Sanok",
+    "lat": 49.559,
+    "lng": 22.214
+  },
+  {
+    "id": 39404,
+    "name": "Siedlce",
+    "lat": 52.163,
+    "lng": 22.274
+  },
+  {
+    "id": 48009,
+    "name": "Skarżysko-Kamienna",
+    "lat": 51.114,
+    "lng": 20.867
+  },
+  {
+    "id": 47001,
+    "name": "Skierniewice",
+    "lat": 51.956,
+    "lng": 20.143
+  },
+  {
+    "id": 4705,
+    "name": "Słupsk",
+    "lat": 54.464,
+    "lng": 17.021
+  },
+  {
+    "id": 34603,
+    "name": "Sochaczew",
+    "lat": 52.227,
+    "lng": 20.241
+  },
+  {
+    "id": 5942,
+    "name": "Sopot",
+    "lat": 54.442,
+    "lng": 18.561
+  },
+  {
+    "id": 74658,
+    "name": "Sosnowiec Główny",
+    "lat": 50.278,
+    "lng": 19.128
+  },
+  {
+    "id": 65003,
+    "name": "Stalowa Wola Rozwadów",
+    "lat": 50.597,
+    "lng": 22.038
+  },
+  {
+    "id": 78402,
+    "name": "Sucha Beskidzka",
+    "lat": 49.742,
+    "lng": 19.592
+  },
+  {
+    "id": 28803,
+    "name": "Szamotuły",
+    "lat": 52.613,
+    "lng": 16.587
+  },
+  {
+    "id": 273,
+    "name": "Szczecin Główny",
+    "lat": 53.418,
+    "lng": 14.551
+  },
+  {
+    "id": 56184,
+    "name": "Szklarska Poręba Górna",
+    "lat": 50.832,
+    "lng": 15.526
+  },
+  {
+    "id": 1008,
+    "name": "Świnoujście",
+    "lat": 53.905,
+    "lng": 14.269
+  },
+  {
+    "id": 71001,
+    "name": "Tarnowskie Góry",
+    "lat": 50.443,
+    "lng": 18.862
+  },
+  {
+    "id": 80630,
+    "name": "Tarnów",
+    "lat": 50.007,
+    "lng": 20.985
+  },
+  {
+    "id": 7112,
+    "name": "Tczew",
+    "lat": 54.093,
+    "lng": 18.775
+  },
+  {
+    "id": 40998,
+    "name": "Terespol",
+    "lat": 52.072,
+    "lng": 23.606
+  },
+  {
+    "id": 19703,
+    "name": "Toruń Główny",
+    "lat": 52.999,
+    "lng": 18.618
+  },
+  {
+    "id": 73700,
+    "name": "Tychy",
+    "lat": 50.128,
+    "lng": 18.971
+  },
+  {
+    "id": 78204,
+    "name": "Wadowice",
+    "lat": 49.882,
+    "lng": 19.497
+  },
+  {
+    "id": 55103,
+    "name": "Wałbrzych Główny",
+    "lat": 50.741,
+    "lng": 16.273
+  },
+  {
+    "id": 33605,
+    "name": "Warszawa Centralna",
+    "lat": 52.2288,
+    "lng": 21.0032
+  },
+  {
+    "id": 36103,
+    "name": "Warszawa Gdańska",
+    "lat": 52.258,
+    "lng": 20.985
+  },
+  {
+    "id": 36129,
+    "name": "Warszawa Praga",
+    "lat": 52.2685,
+    "lng": 21.0335
+  },
+  {
+    "id": 201092,
+    "name": "Warszawa Praga",
+    "lat": 52.2685,
+    "lng": 21.0335
+  },
+  {
+    "id": 33563,
+    "name": "Warszawa Służewiec",
+    "lat": 52.1795,
+    "lng": 20.994
+  },
+  {
+    "id": 33530,
+    "name": "Warszawa Ursus",
+    "lat": 52.1931,
+    "lng": 20.8712
+  },
+  {
+    "id": 33514,
+    "name": "Warszawa Włochy",
+    "lat": 52.2045,
+    "lng": 20.9082
+  },
+  {
+    "id": 38653,
+    "name": "Warszawa Wschodnia",
+    "lat": 52.2512,
+    "lng": 21.052
+  },
+  {
+    "id": 33506,
+    "name": "Warszawa Zachodnia",
+    "lat": 52.2198,
+    "lng": 20.9634
+  },
+  {
+    "id": 76992,
+    "name": "Wisła Uzdrowisko",
+    "lat": 49.658,
+    "lng": 18.857
+  },
+  {
+    "id": 21600,
+    "name": "Włocławek",
+    "lat": 52.651,
+    "lng": 19.06
+  },
+  {
+    "id": 68403,
+    "name": "Wodzisław Śląski",
+    "lat": 50.001,
+    "lng": 18.471
+  },
+  {
+    "id": 60103,
+    "name": "Wrocław Główny",
+    "lat": 51.098,
+    "lng": 17.037
+  },
+  {
+    "id": 30007,
+    "name": "Września",
+    "lat": 52.327,
+    "lng": 17.578
+  },
+  {
+    "id": 69823,
+    "name": "Zabrze",
+    "lat": 50.301,
+    "lng": 18.789
+  },
+  {
+    "id": 83758,
+    "name": "Zagórz",
+    "lat": 49.516,
+    "lng": 22.261
+  },
+  {
+    "id": 79020,
+    "name": "Zakopane",
+    "lat": 49.299,
+    "lng": 19.961
+  },
+  {
+    "id": 65904,
+    "name": "Zamość",
+    "lat": 50.718,
+    "lng": 23.256
+  },
+  {
+    "id": 75309,
+    "name": "Zawiercie",
+    "lat": 50.487,
+    "lng": 19.423
+  },
+  {
+    "id": 51847,
+    "name": "Zgorzelec",
+    "lat": 51.148,
+    "lng": 15.011
+  },
+  {
+    "id": 27805,
+    "name": "Zielona Góra Główna",
+    "lat": 51.946,
+    "lng": 15.514
+  },
+  {
+    "id": 34207,
+    "name": "Żyrardów",
+    "lat": 52.053,
+    "lng": 20.443
+  },
+  {
+    "id": 76604,
+    "name": "Żywiec",
+    "lat": 49.688,
+    "lng": 19.182
+  }
+]

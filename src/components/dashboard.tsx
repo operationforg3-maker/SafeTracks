@@ -5,12 +5,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { TrainCard } from '@/components/train-card';
 import type { Train } from '@/lib/types';
 import { useGeolocation } from '@/hooks/use-geolocation';
-import { AlertCircle, WifiOff, Train as TrainIcon, Filter, PackageCheck } from 'lucide-react';
+import { AlertCircle, WifiOff, MapPin, PackageCheck, Radio } from 'lucide-react';
 import { Slider } from './ui/slider';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { calculateDistanceMeters } from '@/services/pkp-api';
+import { calculateDistanceMeters, findNearestStations } from '@/services/pkp-api';
 
 interface DashboardProps {
   trains: Train[];
@@ -23,6 +23,13 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
   const { position, error: geoError } = useGeolocation();
   const [timeWindow, setTimeWindow] = useState([60]);
   const [operatorFilter, setOperatorFilter] = useState<string>('all');
+
+  // Wykrywanie najbliższych posterunków / stacji PKP PLK dla pozycji GPS
+  const nearestStation = useMemo(() => {
+    if (!position) return null;
+    const stations = findNearestStations(position.lat, position.lng, 1);
+    return stations.length > 0 ? stations[0] : null;
+  }, [position]);
 
   // Filtrowanie i sortowanie pociągów (najbliższe użytkownikowi na samej górze)
   const sortedAndFilteredTrains = useMemo(() => {
@@ -49,7 +56,7 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
 
   return (
     <div className="flex h-full flex-col bg-card/95 backdrop-blur-sm">
-      <div className="p-3 sm:p-4 border-b space-y-3">
+      <div className="p-3 sm:p-4 border-b space-y-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h2 className="font-headline text-base sm:text-lg font-bold">Radar Szlakowy</h2>
@@ -71,6 +78,20 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
           )}
         </div>
 
+        {/* Wskaźnik najbliższego węzła / posterunku PKP PLK dla współrzędnych GPS */}
+        {nearestStation && (
+          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-md bg-muted/60 border text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-1.5 truncate">
+              <Radio className="h-3.5 w-3.5 text-emerald-500 shrink-0 animate-pulse" />
+              <span>Najbliższy posterunek PLK:</span>
+              <strong className="text-foreground font-semibold truncate">{nearestStation.name}</strong>
+            </div>
+            <span className="font-mono text-[10px] shrink-0 text-primary font-bold">
+              {(nearestStation.distanceMeters / 1000).toFixed(1)} km
+            </span>
+          </div>
+        )}
+
         {/* Szybkie filtry operatorów */}
         <div className="flex items-center gap-1 overflow-x-auto text-xs py-0.5 scrollbar-none">
           <Button
@@ -88,22 +109,6 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
             onClick={() => setOperatorFilter(operatorFilter === 'ic' ? 'all' : 'ic')}
           >
             Intercity / Pendolino
-          </Button>
-          <Button
-            size="sm"
-            variant={operatorFilter === 'km' ? 'default' : 'ghost'}
-            className="h-7 px-2.5 text-[11px]"
-            onClick={() => setOperatorFilter(operatorFilter === 'km' ? 'all' : 'km')}
-          >
-            Koleje Mazowieckie
-          </Button>
-          <Button
-            size="sm"
-            variant={operatorFilter === 'polregio' ? 'default' : 'ghost'}
-            className="h-7 px-2.5 text-[11px]"
-            onClick={() => setOperatorFilter(operatorFilter === 'polregio' ? 'all' : 'polregio')}
-          >
-            Polregio
           </Button>
           <Button
             size="sm"

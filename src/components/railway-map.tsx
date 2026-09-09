@@ -5,6 +5,7 @@ import type { Train, RailwayCrossing, HazardReport } from '@/lib/types';
 import { useGeolocation } from '@/hooks/use-geolocation';
 import { railwayCrossings, initialHazardReports } from '@/lib/data';
 import { TrainFront, Locate, Layers, ShieldAlert, Settings, PackageCheck, Eye, EyeOff } from 'lucide-react';
+import { findNearestStations } from '@/services/pkp-api';
 import { Button } from './ui/button';
 import { MapSettingsDialog, MapStyleOption } from './map-settings-dialog';
 import 'leaflet/dist/leaflet.css';
@@ -50,6 +51,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
   const baseTileLayerRef = useRef<any>(null);
   const railwayLayerRef = useRef<any>(null);
   const hasCenteredOnUserRef = useRef<boolean>(false);
+  const nearestStationMarkersRef = useRef<any[]>([]);
 
   const { position: userPosition } = useGeolocation();
   const [mapStyle, setMapStyle] = useState<MapStyleOption>('dark'); // Domyślnie profesjonalny tryb Dark Radar
@@ -251,6 +253,36 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         map.setView(userLatLng, 15, { animate: true });
         hasCenteredOnUserRef.current = true;
       }
+
+      // Wyświetlenie najbliższego posterunku / węzła PKP PLK dla pozycji użytkownika
+      const nearest = findNearestStations(userPosition.lat, userPosition.lng, 2);
+      nearestStationMarkersRef.current.forEach((m) => m.remove());
+      nearestStationMarkersRef.current = [];
+
+      nearest.forEach((st) => {
+        const distKm = (st.distanceMeters / 1000).toFixed(1);
+        const beaconIcon = L.divIcon({
+          html: `
+            <div style="background: rgba(16, 185, 129, 0.95); color: white; border: 2px solid white; border-radius: 8px; padding: 3px 8px; font-weight: 700; font-size: 11px; box-shadow: 0 0 12px rgba(16, 185, 129, 0.8); display: flex; align-items: center; gap: 4px; white-space: nowrap;">
+              <span>📡 ${st.name}</span>
+              <span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 4px; border-radius: 4px; font-family: monospace;">${distKm} km</span>
+            </div>
+          `,
+          className: 'station-beacon-marker',
+          iconSize: [140, 28],
+          iconAnchor: [70, 14],
+        });
+
+        const stMarker = L.marker([st.lat, st.lng], { icon: beaconIcon, zIndexOffset: 300 }).addTo(map);
+        stMarker.bindPopup(`
+          <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; color: #1E293B;">
+            <div style="font-weight: bold; color: #047857;">📡 Węzeł PKP PLK: ${st.name}</div>
+            <div style="color: #64748B; font-size: 11px; margin-top: 2px;">Odległość od Ciebie: <b>${distKm} km</b></div>
+            <div style="color: #64748B; font-size: 11px;">ID w systemie PLK: <b>#${st.id}</b></div>
+          </div>
+        `);
+        nearestStationMarkersRef.current.push(stMarker);
+      });
     });
   }, [userPosition, mapReady]);
 
