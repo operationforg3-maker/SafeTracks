@@ -123,6 +123,49 @@ class AlertAudioService {
     }
   }
 
+  /**
+   * Dźwięk mijającego pociągu (Doppler train horn / passing whoosh)
+   */
+  public playTrainPassingSound() {
+    if (!this.soundEnabled) return;
+    this.initAudioContext();
+    if (!this.audioCtx) return;
+
+    try {
+      const now = this.audioCtx.currentTime;
+      const osc1 = this.audioCtx.createOscillator();
+      const osc2 = this.audioCtx.createOscillator();
+      const gain = this.audioCtx.createGain();
+
+      // Akord trąbki lokomotywy (standardowa polska syrena PKP: F4 + A4) z efektem Dopplera
+      osc1.type = 'sawtooth';
+      osc2.type = 'sawtooth';
+
+      osc1.frequency.setValueAtTime(370, now);
+      osc1.linearRampToValueAtTime(349, now + 0.4);
+      osc1.linearRampToValueAtTime(310, now + 1.2);
+
+      osc2.frequency.setValueAtTime(466, now);
+      osc2.linearRampToValueAtTime(440, now + 0.4);
+      osc2.linearRampToValueAtTime(392, now + 1.2);
+
+      gain.gain.setValueAtTime(0.01, now);
+      gain.gain.linearRampToValueAtTime(0.35, now + 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.005, now + 1.4);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(this.audioCtx.destination);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 1.4);
+      osc2.stop(now + 1.4);
+    } catch (e) {
+      console.warn('[Audio] Błąd odtwarzania dźwięku mijania pociągu:', e);
+    }
+  }
+
   public stopAlarm() {
     this.activeOscillators.forEach((osc) => {
       try {

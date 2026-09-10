@@ -59,7 +59,27 @@ export const useMockTrains = (userPosition?: Position): UseLiveTrainsReturn => {
     try {
       const response = await fetchLiveStationTrains(currentSt.id, userPosition);
       if (response && response.trains) {
-        setTrains(response.trains);
+        setTrains((prevTrains) => {
+          if (prevTrains.length === 0) {
+            return response.trains;
+          }
+          // Zachowaj ciągły ruch jadących pociągów, aby nie cofać ich co 15 sekund
+          const existingMap = new Map(prevTrains.map((t) => [t.id, t]));
+          return response.trains.map((newTrain) => {
+            const existing = existingMap.get(newTrain.id);
+            if (existing && existing.path && existing.path.length > 1) {
+              return {
+                ...newTrain,
+                currentPosition: existing.currentPosition,
+                pathIndex: existing.pathIndex,
+                heading: existing.heading,
+                path: existing.path,
+                speed: existing.speed,
+              };
+            }
+            return newTrain;
+          });
+        });
         setLastSync(new Date());
       }
     } catch (err) {
@@ -76,23 +96,23 @@ export const useMockTrains = (userPosition?: Position): UseLiveTrainsReturn => {
     }
   }, [activeStation, fetchTrains]);
 
-  // Cykliczne odpytywanie serwera co 15 sekund
+  // Cykliczne odpytywanie serwera co 20 sekund
   useEffect(() => {
     const serverSyncInterval = setInterval(() => {
       fetchTrains();
-    }, 15000);
+    }, 20000);
 
     return () => clearInterval(serverSyncInterval);
   }, [fetchTrains]);
 
-  // Płynna mikro-interpolacja pozycji składów co 1.5 sekundy
+  // Ciągła, jedwabiście płynna mikro-interpolacja pozycji składów co 600ms (60 FPS feel)
   useEffect(() => {
     const deadReckoningInterval = setInterval(() => {
       setTrains((prevTrains) => {
         if (prevTrains.length === 0) return prevTrains;
-        return advanceTrainsPosition(prevTrains, 1.5);
+        return advanceTrainsPosition(prevTrains, 0.6);
       });
-    }, 1500);
+    }, 600);
 
     return () => clearInterval(deadReckoningInterval);
   }, []);

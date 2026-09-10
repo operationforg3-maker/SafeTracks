@@ -4,8 +4,9 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import type { Train, RailwayCrossing, HazardReport } from '@/lib/types';
 import { useGeolocation } from '@/hooks/use-geolocation';
 import { railwayCrossings, initialHazardReports } from '@/lib/data';
-import { Locate, Layers, Settings, PackageCheck, Target } from 'lucide-react';
+import { Locate, Layers, Settings, PackageCheck, Target, TrainFront } from 'lucide-react';
 import { findNearestStations, calculateDistanceMeters, isTrainApproaching } from '@/services/pkp-api';
+import { alertAudio } from '@/services/alert-audio';
 import { Button } from './ui/button';
 import { MapSettingsDialog, MapStyleOption } from './map-settings-dialog';
 import { useTheme } from '@/components/theme-provider';
@@ -53,6 +54,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
   const nearestStationMarkersRef = useRef<any[]>([]);
   const approachVectorLineRef = useRef<any>(null);
   const approachVectorMarkerRef = useRef<any>(null);
+  const hasPlayedPassSoundRef = useRef<Set<string>>(new Set());
 
   const { effectiveTheme } = useTheme();
   const { position: userPosition } = useGeolocation();
@@ -121,15 +123,23 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
 
       const initialCenter: [number, number] = userPosition
         ? [userPosition.lat, userPosition.lng]
-        : [52.231, 21.006]; // Domyślnie centrum kolejowe
+        : [52.231, 21.006];
 
       const map = L.map(mapContainerRef.current, {
         center: initialCenter,
-        zoom: 13, // Szeroki podgląd ~6km
+        zoom: 13,
         zoomControl: false,
       });
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      // Klasa zapobiegająca pływaniu markerów podczas zoomu
+      map.on('zoomstart', () => {
+        mapContainerRef.current?.classList.add('map-is-zooming');
+      });
+      map.on('zoomend', () => {
+        mapContainerRef.current?.classList.remove('map-is-zooming');
+      });
 
       // 1. Podkład bazowy: Czysty podkład Esri
       const currentProvider = TILE_PROVIDERS[mapStyle];
@@ -155,7 +165,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
       railwayLayerRef.current = railwayLayer;
       mapInstanceRef.current = map;
 
-      // 3. Dodaj estetyczne, dyskretne znaczniki przejazdów i dzikich przejść
+      // 3. Dodaj estetyczne znaczniki przejazdów i dzikich przejść
       railwayCrossings.forEach((crossing: RailwayCrossing) => {
         const isWild = crossing.isWildCrossing;
         const iconHtml = isWild
@@ -260,7 +270,6 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
           [userPosition.lat, userPosition.lng],
           [targetTrain.currentPosition.lat, targetTrain.currentPosition.lng],
         ]);
-        // Margines pad(0.35) zapewnia, że zarówno użytkownik jak i pociąg są widoczni z ładnym odstępem
         map.fitBounds(bounds.pad(0.35), { maxZoom: 15, minZoom: 11, animate: true });
       } else {
         map.setView([userPosition.lat, userPosition.lng], 13, { animate: true });
@@ -353,7 +362,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
     });
   }, [userPosition, mapReady]);
 
-  // Wektor zbliżania: Linia przerywana łącząca pieszego z pociągiem + badge z ETA
+  // Wektor zbliżania: Dynamiczna przerywana linia z animacją marszu mrówek + kapsułka ETA
   useEffect(() => {
     if (!mapInstanceRef.current || !userPosition) return;
     const map = mapInstanceRef.current;
@@ -373,8 +382,8 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
       if (nearestApproachingTrain) {
         const train = nearestApproachingTrain.train;
         const distMeters = nearestApproachingTrain.dist;
-        const speedMs = train.speed > 0 ? train.speed : 15;
-        const etaSeconds = Math.max(5, Math.round(distMeters / speedMs));
+        const speedMs = train.speed > 0 ? train.speed : 20;
+        const etaSeconds = Math.max(1, Math.round(distMeters / speedMs));
         const etaFormatted =
           etaSeconds < 60
             ? `${etaSeconds}s`
@@ -385,7 +394,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
             : `${Math.round(distMeters)} m`;
 
         const isApproaching = nearestApproachingTrain.approaching;
-        const strokeColor = isApproaching ? '#EF4444' : '#F59E0B';
+        const strokeColor = distMeters <= 120 ? '#EF4444' : isApproaching ? '#F97316' : '#10B981';
 
         const polyline = L.polyline(
           [
@@ -393,10 +402,11 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
             [train.currentPosition.lat, train.currentPosition.lng],
           ],
           {
+            className: 'approach-vector-line',
             color: strokeColor,
-            weight: 2.5,
-            opacity: 0.85,
-            dashArray: '6, 8',
+            weight: 3,
+            opacity: 0.9,
+            dashArray: '8, 10',
             lineCap: 'round',
           }
         ).addTo(map);
@@ -406,18 +416,24 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         const midLat = (userPosition.lat + train.currentPosition.lat) / 2;
         const midLng = (userPosition.lng + train.currentPosition.lng) / 2;
 
+        const badgeText = distMeters <= 120
+          ? '⚡ MIJA CIĘ TERAZ!'
+          : isApproaching
+          ? `ETA ~${etaFormatted}`
+          : 'ODDALA SIĘ';
+
         const etaBadgeIcon = L.divIcon({
           html: `
-            <div style="background: rgba(15, 23, 42, 0.92); color: #F8FAFC; border: 1.5px solid ${strokeColor}; border-radius: 9999px; padding: 2px 8px; font-size: 10px; font-weight: 700; white-space: nowrap; box-shadow: 0 0 10px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 4px; pointer-events: none; backdrop-filter: blur(4px);">
-              <span style="color: ${strokeColor}; font-size: 11px;">${isApproaching ? '🎯' : '⚡'}</span>
-              <span>ETA ~${etaFormatted}</span>
+            <div style="background: rgba(15, 23, 42, 0.94); color: #F8FAFC; border: 1.5px solid ${strokeColor}; border-radius: 9999px; padding: 2px 8px; font-size: 10px; font-weight: 700; white-space: nowrap; box-shadow: 0 0 12px rgba(0,0,0,0.7); display: flex; align-items: center; gap: 4px; pointer-events: none; backdrop-filter: blur(4px);">
+              <span style="color: ${strokeColor}; font-size: 11px;">${distMeters <= 120 ? '⚡' : isApproaching ? '🎯' : '✅'}</span>
+              <span>${badgeText}</span>
               <span style="opacity: 0.4;">|</span>
-              <span style="font-family: monospace; opacity: 0.85;">${distFormatted}</span>
+              <span style="font-family: monospace; opacity: 0.9;">${distFormatted}</span>
             </div>
           `,
           className: 'approach-vector-badge',
-          iconSize: [120, 24],
-          iconAnchor: [60, 12],
+          iconSize: [130, 24],
+          iconAnchor: [65, 12],
         });
 
         const midMarker = L.marker([midLat, midLng], {
@@ -444,7 +460,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
     };
   }, [nearestApproachingTrain, userPosition, mapReady]);
 
-  // Precyzyjne znaczniki pociągów (Puck lokomotywy 32x32px + kierunkowy grot SVG + wiszący mikro-badge)
+  // Precyzyjne znaczniki pociągów: Snop świateł reflektorów czołowych + animacja ciągłego sunięcia po szynie + fale mijania
   useEffect(() => {
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
@@ -473,10 +489,10 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         } else if (train.type === 'IC') {
           carrierColor = '#3B82F6';
           glowColor = 'rgba(59, 130, 246, 0.8)';
-        } else if (train.type === 'KM') {
+        } else if (train.type === 'KM' || train.type === 'KW' || train.type === 'KD') {
           carrierColor = '#22C55E';
           glowColor = 'rgba(34, 197, 94, 0.8)';
-        } else if (train.type === 'Polregio') {
+        } else if (train.type === 'Polregio' || train.type === 'Regio') {
           carrierColor = '#EF4444';
           glowColor = 'rgba(239, 68, 68, 0.8)';
         } else if (train.type === 'Cargo') {
@@ -485,6 +501,10 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         }
 
         const headingRotation = train.heading || 0;
+        const distToUser = userPosition
+          ? calculateDistanceMeters(userPosition.lat, userPosition.lng, trainPos[0], trainPos[1])
+          : Infinity;
+
         const isApproachingThisTrain =
           userPosition &&
           isTrainApproaching(
@@ -495,28 +515,55 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
             train.heading || 0
           );
 
-        // Precyzyjny znacznik: 32x32px okrągły puck wycentrowany dokładnie na torach + mikrozawieszka powyżej
+        const isPassingNow = distToUser <= 120;
+
+        // Dźwięk syreny pociągu przy mijaniu
+        if (isPassingNow && !hasPlayedPassSoundRef.current.has(train.id)) {
+          hasPlayedPassSoundRef.current.add(train.id);
+          alertAudio.playTrainPassingSound();
+        } else if (!isPassingNow && hasPlayedPassSoundRef.current.has(train.id) && distToUser > 300) {
+          hasPlayedPassSoundRef.current.delete(train.id);
+        }
+
+        // Precyzyjny znacznik z reflektorami, animacją mijania i mikro-badge'em
         const iconHtml = `
           <div style="position: relative; width: 32px; height: 32px; cursor: pointer; user-select: none;">
+            <!-- Snop światła reflektorów czołowych oświetlający tory przed pociągiem -->
+            <div style="position: absolute; top: 16px; left: 16px; width: 0; height: 0; transform: rotate(${headingRotation}deg); transform-origin: 0 0; pointer-events: none; z-index: 1;">
+              <div style="position: absolute; top: -75px; left: -24px; width: 48px; height: 75px; background: linear-gradient(to top, rgba(254, 240, 138, 0.5) 0%, rgba(253, 224, 71, 0.18) 50%, rgba(255, 255, 255, 0) 100%); clip-path: polygon(30% 100%, 70% 100%, 100% 0%, 0% 0%); filter: blur(0.5px); animation: trainLightPulse 2s infinite ease-in-out;"></div>
+              <div style="position: absolute; top: -16px; left: -4px; width: 8px; height: 8px; border-radius: 50%; background: #FEF08A; box-shadow: 0 0 10px #FEF08A, 0 0 20px #EAB308;"></div>
+            </div>
+
             ${
-              isApproachingThisTrain
+              isPassingNow
+                ? `<!-- Efekt gwałtownego mijania pieszego (Doppler shockwave) -->
+                   <div style="position: absolute; inset: -14px; border-radius: 9999px; border: 3px solid #EF4444; animation: ping 0.75s cubic-bezier(0, 0, 0.2, 1) infinite; opacity: 0.9; pointer-events: none;"></div>
+                   <div style="position: absolute; inset: -26px; border-radius: 9999px; border: 2px dashed #F59E0B; animation: ping 1.1s cubic-bezier(0, 0, 0.2, 1) infinite; opacity: 0.7; pointer-events: none;"></div>`
+                : isApproachingThisTrain
                 ? `<div style="position: absolute; inset: -5px; border-radius: 9999px; border: 2px solid ${carrierColor}; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite; opacity: 0.75; pointer-events: none;"></div>`
                 : ''
             }
-            <!-- Okrągły puck lokomotywy zakotwiczony co do metra -->
-            <div style="width: 32px; height: 32px; border-radius: 9999px; background: #0F172A; border: 2.5px solid ${carrierColor}; box-shadow: 0 0 12px ${glowColor}; display: flex; align-items: center; justify-content: center; position: relative;">
-              <svg viewBox="0 0 24 24" width="18" height="18" style="transform: rotate(${headingRotation}deg); transition: transform 0.3s ease; display: block;" fill="${carrierColor}">
+
+            <!-- Okrągły puck lokomotywy zakotwiczony co do metra na osi toru -->
+            <div style="width: 32px; height: 32px; border-radius: 9999px; background: #0F172A; border: 2.5px solid ${isPassingNow ? '#EF4444' : carrierColor}; box-shadow: 0 0 14px ${isPassingNow ? 'rgba(239,68,68,0.9)' : glowColor}; display: flex; align-items: center; justify-content: center; position: relative; z-index: 5;">
+              <svg viewBox="0 0 24 24" width="18" height="18" style="transform: rotate(${headingRotation}deg); transition: transform 0.3s ease; display: block;" fill="${isPassingNow ? '#EF4444' : carrierColor}">
                 <polygon points="12,2 21,20 12,15 3,20" />
               </svg>
             </div>
 
-            <!-- Zawieszony micro-badge 36px powyżej pucka, niezasłaniający szyn -->
+            <!-- Zawieszony micro-badge 36px powyżej pucka -->
             <div style="position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none; z-index: 10; display: flex; flex-direction: column; align-items: center;">
-              <div style="background: rgba(15, 23, 42, 0.94); color: #F8FAFC; border: 1.5px solid ${carrierColor}; border-radius: 6px; padding: 2px 6px; font-weight: 700; font-size: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 4px; backdrop-filter: blur(4px);">
-                <span style="font-family: monospace; letter-spacing: 0.3px;">${train.id}</span>
-                <span style="opacity: 0.4;">•</span>
-                <span style="background: rgba(255,255,255,0.15); font-size: 9px; padding: 1px 4px; border-radius: 3px; font-family: monospace;">${kmh} km/h</span>
-              </div>
+              ${
+                isPassingNow
+                  ? `<div style="background: #DC2626; color: white; border: 1.5px solid white; border-radius: 6px; padding: 2px 7px; font-weight: 900; font-size: 10px; box-shadow: 0 0 16px rgba(220,38,38,0.9); animation: pulse 0.6s infinite; letter-spacing: 0.3px;">
+                       ⚡ MIJA CIĘ! ${kmh} km/h
+                     </div>`
+                  : `<div style="background: rgba(15, 23, 42, 0.94); color: #F8FAFC; border: 1.5px solid ${carrierColor}; border-radius: 6px; padding: 2px 6px; font-weight: 700; font-size: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 4px; backdrop-filter: blur(4px);">
+                       <span style="font-family: monospace; letter-spacing: 0.3px;">${train.id}</span>
+                       <span style="opacity: 0.4;">•</span>
+                       <span style="background: rgba(255,255,255,0.15); font-size: 9px; padding: 1px 4px; border-radius: 3px; font-family: monospace;">${kmh} km/h</span>
+                     </div>`
+              }
               ${
                 enthusiastMode && train.rollingStock
                   ? `<div style="background: rgba(15, 23, 42, 0.9); color: #CBD5E1; font-size: 8.5px; padding: 1px 5px; border-radius: 4px; margin-top: 2px; text-align: center; border: 1px solid rgba(255,255,255,0.2); white-space: nowrap;">${train.rollingStock}</div>`
@@ -574,8 +621,42 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
     }
   };
 
+  // Symulacja przejazdu: natychmiastowe ustawienie ekspresu na pozycji 850m przed pieszym do podglądu animacji
+  const handleSimulateFlyby = () => {
+    if (!userPosition || trains.length === 0) return;
+    const train = trains[0];
+    if (train && train.path && train.path.length >= 2) {
+      train.currentPosition = { ...train.path[1] };
+      train.pathIndex = 1;
+      frameOnApproachingTrain();
+    }
+  };
+
   return (
     <div className="relative w-full h-full min-h-[300px] overflow-hidden bg-slate-950">
+      {/* Globalne style animacji ciągłego ruchu 60 FPS dla markerów i wektora zbliżania */}
+      <style>{`
+        .train-icon-container {
+          transition: transform 0.6s linear !important;
+          will-change: transform;
+        }
+        .map-is-zooming .train-icon-container {
+          transition: none !important;
+        }
+        @keyframes approachDashFlow {
+          to {
+            stroke-dashoffset: -28px;
+          }
+        }
+        .approach-vector-line {
+          animation: approachDashFlow 0.75s linear infinite;
+        }
+        @keyframes trainLightPulse {
+          0%, 100% { opacity: 0.85; }
+          50% { opacity: 1; }
+        }
+      `}</style>
+
       <div ref={mapContainerRef} className="w-full h-full" />
 
       {/* Pływający pasek statusu zbliżającego się pociągu (Lewy górny róg) */}
@@ -583,13 +664,19 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         <div className="absolute top-3 left-3 z-[1000] bg-card/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-border/80 text-xs shadow-xl flex items-center gap-2 max-w-[calc(100%-160px)] sm:max-w-md">
           <div
             className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-              nearestApproachingTrain.approaching
+              nearestApproachingTrain.dist <= 120
+                ? 'bg-destructive shadow-[0_0_12px_rgba(239,68,68,1)] animate-ping'
+                : nearestApproachingTrain.approaching
                 ? 'bg-destructive shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse'
                 : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
             }`}
           />
           <span className="font-semibold truncate text-card-foreground text-[11px] sm:text-xs">
-            {nearestApproachingTrain.approaching ? '🚨 Zbliża się: ' : 'ℹ️ W pobliżu: '}
+            {nearestApproachingTrain.dist <= 120
+              ? '⚡ MIJA CIĘ TERAZ: '
+              : nearestApproachingTrain.approaching
+              ? '🚨 Zbliża się: '
+              : '✅ Minął Cię (oddala się): '}
             <span className="font-mono font-bold">{nearestApproachingTrain.train.id}</span>
             {' '}
             (
@@ -620,6 +707,20 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
           >
             <Target className="h-4 w-4 text-emerald-500 animate-pulse" />
             <span className="hidden sm:inline font-bold">Śledź skład</span>
+          </Button>
+        )}
+
+        {/* Przycisk testowania / podglądu animacji przejazdu */}
+        {userPosition && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 px-2.5 text-xs gap-1.5 shadow-lg backdrop-blur-md bg-destructive/10 border-destructive/30 text-destructive hover:bg-destructive/20"
+            onClick={handleSimulateFlyby}
+            title="Animuj przejazd pociągu obok mojej pozycji"
+          >
+            <TrainFront className="h-4 w-4 text-destructive animate-pulse" />
+            <span className="hidden sm:inline font-bold">Animuj przejazd</span>
           </Button>
         )}
 
