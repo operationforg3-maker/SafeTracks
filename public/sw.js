@@ -1,5 +1,5 @@
 // SafeTracks Service Worker (PWA & Offline Support)
-const CACHE_NAME = 'safetracks-v2';
+const CACHE_NAME = 'safetracks-v3';
 const STATIC_ASSETS = [
   '/',
   '/app',
@@ -37,8 +37,8 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // Zezwól na normalne pobieranie kafelków OpenRailwayMap i CartoDB z cachowaniem
-  if (url.hostname.includes('openrailwaymap.org') || url.hostname.includes('cartocdn.com')) {
+  // Zezwól na normalne pobieranie kafelków OpenRailwayMap i ArcGIS z cachowaniem
+  if (url.hostname.includes('openrailwaymap.org') || url.hostname.includes('arcgisonline.com')) {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {
         if (cachedResponse) return cachedResponse;
