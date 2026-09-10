@@ -31,7 +31,7 @@ const TILE_PROVIDERS: Record<MapStyleOption, { url: string; attribution: string;
     maxZoom: 18,
   },
   voyager: {
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
     attribution: '&copy; OpenStreetMap &copy; CARTO',
     maxZoom: 19,
     subdomains: 'abcd',

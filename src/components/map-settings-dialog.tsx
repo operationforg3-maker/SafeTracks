@@ -108,11 +108,11 @@ export function MapSettingsDialog({
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs">🏙️ Voyager Jasny</span>
+                  <span className="font-bold text-xs">🏙️ Jasny (Positron)</span>
                   {currentStyle === 'voyager' && <Check className="h-3.5 w-3.5 text-primary" />}
                 </div>
                 <span className="text-[10px] text-muted-foreground">
-                  Jasna, czysta mapa wektorowa ułatwiająca czytanie nazw stacji.
+                  Jasna, czysta mapa wektorowa ułatwiająca czytanie nazw stacji i torów.
                 </span>
               </div>
 
