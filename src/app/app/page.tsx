@@ -9,20 +9,30 @@ import { ProximityAlertBanner } from '@/components/proximity-alert-banner';
 import { PwaInstallBanner } from '@/components/pwa-install-banner';
 import { TrainSpotDialog } from '@/components/train-spot-dialog';
 import { TrainDetailDrawer } from '@/components/train-detail-drawer';
+import { StationSearchDialog } from '@/components/station-search-dialog';
 import { useGeolocation } from '@/hooks/use-geolocation';
 import type { Train } from '@/lib/types';
-import { Map, ListFilter, Columns2, PackageCheck } from 'lucide-react';
+import { Map, ListFilter, Columns2, PackageCheck, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function Home() {
   const [enthusiastMode, setEnthusiastMode] = useState(false);
   const [isSosOpen, setIsSosOpen] = useState(false);
   const [isSpotDialogOpen, setIsSpotDialogOpen] = useState(false);
+  const [isStationSearchOpen, setIsStationSearchOpen] = useState(false);
   const [selectedTrain, setSelectedTrain] = useState<Train | null>(null);
   const [mobileView, setMobileView] = useState<'split' | 'map' | 'radar'>('split');
 
-  const { trains, addSpottedTrain } = useMockTrains();
   const { position: userPosition } = useGeolocation();
+  const {
+    trains,
+    activeStation,
+    setActiveStation,
+    isLoading,
+    lastSync,
+    refreshNow,
+    addSpottedTrain,
+  } = useMockTrains(userPosition);
 
   return (
     <div className="flex h-screen w-full flex-col bg-background overflow-hidden selection:bg-primary selection:text-primary-foreground">
@@ -37,10 +47,11 @@ export default function Home() {
       <ProximityAlertBanner
         trains={trains}
         onOpenSos={() => setIsSosOpen(true)}
+        activeStation={activeStation}
       />
 
       {/* Przełącznik widoku na urządzeniach mobilnych */}
-      <div className="flex sm:hidden items-center justify-between bg-muted/80 p-1 px-2 border-b text-xs">
+      <div className="flex sm:hidden items-center justify-between bg-muted/90 p-1.5 px-2 border-b text-xs gap-1">
         <div className="flex items-center gap-1">
           <Button
             size="sm"
@@ -71,15 +82,28 @@ export default function Home() {
           </Button>
         </div>
 
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 text-[11px] px-2 gap-1 border-amber-500/40 text-amber-500 bg-amber-500/10"
-          onClick={() => setIsSpotDialogOpen(true)}
-        >
-          <PackageCheck className="h-3.5 w-3.5" />
-          <span>Spotuj</span>
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px] px-2 gap-1 border-slate-700 bg-slate-900 text-slate-200"
+            onClick={() => setIsStationSearchOpen(true)}
+            title="Zmień posterunek PLK"
+          >
+            <Search className="h-3 w-3 text-primary" />
+            <span className="truncate max-w-[85px]">{activeStation ? activeStation.name : 'Stacja'}</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px] px-1.5 gap-1 border-amber-500/40 text-amber-500 bg-amber-500/10"
+            onClick={() => setIsSpotDialogOpen(true)}
+            title="Spotuj skład towarowy"
+          >
+            <PackageCheck className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       <main className="flex flex-1 flex-col overflow-hidden relative">
@@ -116,6 +140,11 @@ export default function Home() {
             enthusiastMode={enthusiastMode}
             onTrainSelect={(train) => setSelectedTrain(train)}
             onOpenSpotDialog={() => setIsSpotDialogOpen(true)}
+            activeStation={activeStation}
+            onOpenStationSearch={() => setIsStationSearchOpen(true)}
+            isLoading={isLoading}
+            lastSync={lastSync}
+            onRefresh={refreshNow}
           />
         </div>
       </main>
@@ -127,6 +156,15 @@ export default function Home() {
         onTrainSpotted={(newTrain) => {
           addSpottedTrain(newTrain);
         }}
+      />
+
+      {/* Dialog wyszukiwania i wyboru posterunku / stacji w Polsce */}
+      <StationSearchDialog
+        open={isStationSearchOpen}
+        onOpenChange={setIsStationSearchOpen}
+        activeStation={activeStation}
+        onSelectStation={(station) => setActiveStation(station)}
+        userPosition={userPosition}
       />
 
       {/* Drawer ze szczegółami wybranego pociągu (Flightradar style) */}

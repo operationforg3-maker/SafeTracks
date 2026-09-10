@@ -5,40 +5,49 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { TrainCard } from '@/components/train-card';
 import type { Train } from '@/lib/types';
 import { useGeolocation } from '@/hooks/use-geolocation';
-import { AlertCircle, WifiOff, MapPin, PackageCheck, Radio } from 'lucide-react';
+import { AlertCircle, WifiOff, MapPin, PackageCheck, Radio, RefreshCw, Search, Loader2 } from 'lucide-react';
 import { Slider } from './ui/slider';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { calculateDistanceMeters, findNearestStations, isTrainApproaching } from '@/services/pkp-api';
+import { calculateDistanceMeters, isTrainApproaching, GeocodedStation } from '@/services/pkp-api';
 
 interface DashboardProps {
   trains: Train[];
   enthusiastMode: boolean;
   onTrainSelect?: (train: Train) => void;
   onOpenSpotDialog?: () => void;
+  activeStation?: GeocodedStation | null;
+  onOpenStationSearch?: () => void;
+  isLoading?: boolean;
+  lastSync?: Date | null;
+  onRefresh?: () => void;
 }
 
-export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDialog }: DashboardProps) {
+export function Dashboard({
+  trains,
+  enthusiastMode,
+  onTrainSelect,
+  onOpenSpotDialog,
+  activeStation,
+  onOpenStationSearch,
+  isLoading,
+  lastSync,
+  onRefresh,
+}: DashboardProps) {
   const { position, error: geoError } = useGeolocation();
-  const [timeWindow, setTimeWindow] = useState([10]);
+  const [timeWindow, setTimeWindow] = useState([30]);
   const [operatorFilter, setOperatorFilter] = useState<string>('all');
 
-  // Wykrywanie najbliższych posterunków / stacji PKP PLK dla pozycji GPS
-  const nearestStation = useMemo(() => {
-    if (!position) return null;
-    const stations = findNearestStations(position.lat, position.lng, 1);
-    return stations.length > 0 ? stations[0] : null;
-  }, [position]);
-
-  // Filtrowanie i sortowanie pociągów (najbliższe użytkownikowi na samej górze i w wybranym horyzoncie czasowym)
+  // Filtrowanie i sortowanie pociągów
   const sortedAndFilteredTrains = useMemo(() => {
     let list = [...trains];
 
     if (operatorFilter !== 'all') {
       list = list.filter((t) => {
         if (operatorFilter === 'cargo') return t.type.toLowerCase() === 'cargo';
-        if (operatorFilter === 'ic') return t.type.toLowerCase() === 'eip' || t.type.toLowerCase() === 'ic';
+        if (operatorFilter === 'ic') return t.type.toLowerCase() === 'eip' || t.type.toLowerCase() === 'ic' || t.type.toLowerCase() === 'tlk';
+        if (operatorFilter === 'regional') return t.type.toLowerCase() === 'km' || t.type.toLowerCase() === 'polregio' || t.type.toLowerCase() === 'kd' || t.type.toLowerCase() === 'ks' || t.type.toLowerCase() === 'wkd';
         return t.type.toLowerCase() === operatorFilter.toLowerCase() || t.operator?.toLowerCase().includes(operatorFilter.toLowerCase());
       });
     }
@@ -47,7 +56,7 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
       const maxSeconds = timeWindow[0] * 60;
       list = list.filter((t) => {
         const dist = calculateDistanceMeters(position.lat, position.lng, t.currentPosition.lat, t.currentPosition.lng);
-        const speed = Math.max(t.speed, 5);
+        const speed = Math.max(t.speed, 8);
         const eta = dist / speed;
         return eta <= maxSeconds;
       });
@@ -69,10 +78,16 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
     return list;
   }, [trains, operatorFilter, position, timeWindow]);
 
+  const stationDistKm = useMemo(() => {
+    if (!position || !activeStation) return null;
+    const dist = calculateDistanceMeters(position.lat, position.lng, activeStation.lat, activeStation.lng);
+    return (dist / 1000).toFixed(1);
+  }, [position, activeStation]);
+
   return (
     <div className="flex h-full flex-col bg-card/95 backdrop-blur-sm">
-      <div className="p-3 sm:p-4 border-b space-y-2.5">
-        <div className="flex items-center justify-between">
+      <div className="p-3 sm:p-4 border-b space-y-2">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <h2 className="font-headline text-base sm:text-lg font-bold">Radar Szlakowy</h2>
             <Badge variant="secondary" className="font-mono text-xs">
@@ -80,30 +95,62 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
             </Badge>
           </div>
 
-          {onOpenSpotDialog && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 px-2.5 text-xs gap-1 border-amber-500/40 text-amber-500 bg-amber-500/10 hover:bg-amber-500/20"
-              onClick={onOpenSpotDialog}
-            >
-              <PackageCheck className="h-3.5 w-3.5" />
-              <span>+ Spotuj towarowy</span>
-            </Button>
-          )}
+          <div className="flex items-center gap-1.5">
+            {onRefresh && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs gap-1"
+                onClick={onRefresh}
+                disabled={isLoading}
+                title="Pobierz najświeższe dane z PKP PLK"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin text-primary' : 'text-muted-foreground'}`} />
+                <span className="hidden sm:inline">Odśwież</span>
+              </Button>
+            )}
+
+            {onOpenSpotDialog && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs gap-1 border-amber-500/40 text-amber-500 bg-amber-500/10 hover:bg-amber-500/20"
+                onClick={onOpenSpotDialog}
+              >
+                <PackageCheck className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">+ Spotuj</span>
+              </Button>
+            )}
+          </div>
         </div>
 
-        {/* Wskaźnik najbliższego węzła / posterunku PKP PLK dla współrzędnych GPS */}
-        {nearestStation && (
-          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-md bg-muted/60 border text-[11px] text-muted-foreground">
-            <div className="flex items-center gap-1.5 truncate">
+        {/* Pasek aktywnej stacji / posterunku PLK */}
+        {activeStation && (
+          <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-muted/70 border text-xs gap-2">
+            <div className="flex items-center gap-1.5 truncate flex-1 min-w-0">
               <Radio className="h-3.5 w-3.5 text-emerald-500 shrink-0 animate-pulse" />
-              <span>Najbliższy posterunek PLK:</span>
-              <strong className="text-foreground font-semibold truncate">{nearestStation.name}</strong>
+              <span className="text-muted-foreground shrink-0 hidden xs:inline">Posterunek:</span>
+              <strong className="text-foreground font-semibold truncate">{activeStation.name}</strong>
+              {stationDistKm && (
+                <span className="font-mono text-[10px] text-primary shrink-0 font-bold">
+                  ({stationDistKm} km)
+                </span>
+              )}
             </div>
-            <span className="font-mono text-[10px] shrink-0 text-primary font-bold">
-              {(nearestStation.distanceMeters / 1000).toFixed(1)} km
-            </span>
+
+            <div className="flex items-center gap-1 shrink-0">
+              {onOpenStationSearch && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 px-2 text-[11px] gap-1 text-primary hover:bg-primary/15 font-semibold"
+                  onClick={onOpenStationSearch}
+                >
+                  <Search className="h-3 w-3" />
+                  <span>Zmień stację</span>
+                </Button>
+              )}
+            </div>
           </div>
         )}
 
@@ -112,7 +159,7 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
           <Button
             size="sm"
             variant={operatorFilter === 'all' ? 'default' : 'ghost'}
-            className="h-7 px-2.5 text-[11px]"
+            className="h-6 px-2 text-[11px]"
             onClick={() => setOperatorFilter('all')}
           >
             Wszystkie
@@ -120,30 +167,38 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
           <Button
             size="sm"
             variant={operatorFilter === 'ic' ? 'default' : 'ghost'}
-            className="h-7 px-2.5 text-[11px]"
+            className="h-6 px-2 text-[11px]"
             onClick={() => setOperatorFilter(operatorFilter === 'ic' ? 'all' : 'ic')}
           >
             Intercity / Pendolino
           </Button>
           <Button
             size="sm"
+            variant={operatorFilter === 'regional' ? 'default' : 'ghost'}
+            className="h-6 px-2 text-[11px]"
+            onClick={() => setOperatorFilter(operatorFilter === 'regional' ? 'all' : 'regional')}
+          >
+            Regio / KM / KD
+          </Button>
+          <Button
+            size="sm"
             variant={operatorFilter === 'cargo' ? 'default' : 'ghost'}
-            className="h-7 px-2.5 text-[11px] text-amber-500 font-semibold"
+            className="h-6 px-2 text-[11px] text-amber-500 font-semibold"
             onClick={() => setOperatorFilter(operatorFilter === 'cargo' ? 'all' : 'cargo')}
           >
-            📦 Towarowe (Cargo)
+            📦 Towarowe
           </Button>
         </div>
 
-        <div>
-          <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-            <Label htmlFor="time-window-slider">Horyzont czasowy zbliżania</Label>
-            <span className="font-bold font-mono text-foreground">{timeWindow[0]} min</span>
+        <div className="pt-0.5">
+          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+            <Label htmlFor="time-window-slider" className="text-[11px]">Horyzont czasowy</Label>
+            <span className="font-bold font-mono text-foreground text-[11px]">{timeWindow[0]} min</span>
           </div>
           <Slider
             id="time-window-slider"
-            min={5}
-            max={120}
+            min={10}
+            max={60}
             step={5}
             value={timeWindow}
             onValueChange={setTimeWindow}
@@ -153,8 +208,14 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-3 sm:p-4 space-y-3">
-          {sortedAndFilteredTrains.length > 0 ? (
+        <div className="p-3 sm:p-4 space-y-2.5">
+          {isLoading && sortedAndFilteredTrains.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-muted-foreground text-center">
+              <Loader2 className="w-8 h-8 mb-3 animate-spin text-primary" />
+              <p className="text-sm font-medium">Łączenie z PKP PLK OpenDataAPI...</p>
+              <p className="text-xs text-muted-foreground mt-1">Pobieranie rzeczywistych składów na szlaku</p>
+            </div>
+          ) : sortedAndFilteredTrains.length > 0 ? (
             sortedAndFilteredTrains.map((train) => (
               <TrainCard
                 key={train.id}
@@ -166,21 +227,33 @@ export function Dashboard({ trains, enthusiastMode, onTrainSelect, onOpenSpotDia
             ))
           ) : (
             <div className="flex flex-col items-center justify-center h-48 text-muted-foreground text-center">
-              <WifiOff className="w-10 h-10 mb-3 opacity-60" />
-              <p className="text-sm font-medium">Brak pociągów dla wybranych filtrów.</p>
-              <Button
-                variant="link"
-                size="sm"
-                className="text-xs text-primary mt-1"
-                onClick={() => setOperatorFilter('all')}
-              >
-                Pokaż wszystkie pociągi
-              </Button>
+              <WifiOff className="w-8 h-8 mb-2 opacity-60" />
+              <p className="text-sm font-medium">Brak pociągów dla wybranego okna czasowego.</p>
+              <div className="flex items-center gap-2 mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-8"
+                  onClick={() => setTimeWindow([60])}
+                >
+                  Zwiększ horyzont (60 min)
+                </Button>
+                {onOpenStationSearch && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="text-xs h-8"
+                    onClick={onOpenStationSearch}
+                  >
+                    Wybierz inny węzeł
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
           {geoError && (
-            <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-xs text-destructive">
+            <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-2.5 text-xs text-destructive">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <p>Włącz lokalizację GPS w telefonie, aby aktywować ostrzeganie przed potrąceniem.</p>
             </div>

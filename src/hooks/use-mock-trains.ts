@@ -1,35 +1,115 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Train } from '@/lib/types';
-import { fetchLiveTrains, initialPlkTrains } from '@/services/pkp-api';
+import {
+  fetchLiveStationTrains,
+  findNearestStation,
+  advanceTrainsPosition,
+  GeocodedStation,
+  allStations,
+} from '@/services/pkp-api';
+import type { Position } from './use-geolocation';
 
-export const useMockTrains = () => {
-  const [trains, setTrains] = useState<Train[]>(initialPlkTrains);
+export interface UseLiveTrainsReturn {
+  trains: Train[];
+  activeStation: GeocodedStation | null;
+  setActiveStation: (st: GeocodedStation) => void;
+  isLoading: boolean;
+  lastSync: Date | null;
+  refreshNow: () => Promise<void>;
+  addSpottedTrain: (newTrain: Train) => void;
+}
+
+export const useMockTrains = (userPosition?: Position): UseLiveTrainsReturn => {
+  const [trains, setTrains] = useState<Train[]>([]);
+  const [activeStation, setActiveStationState] = useState<GeocodedStation | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
+
+  const hasManuallyChosenStation = useRef<boolean>(false);
+  const activeStationRef = useRef<GeocodedStation | null>(null);
+  activeStationRef.current = activeStation;
+
+  const setActiveStation = useCallback((st: GeocodedStation) => {
+    hasManuallyChosenStation.current = true;
+    setActiveStationState(st);
+  }, []);
+
+  // Automatyczne ustawienie najbliższej stacji gdy GPS jest po raz pierwszy dostępny
+  useEffect(() => {
+    if (userPosition && !hasManuallyChosenStation.current) {
+      const nearest = findNearestStation(userPosition.lat, userPosition.lng);
+      if (!activeStationRef.current || activeStationRef.current.id !== nearest.id) {
+        setActiveStationState(nearest);
+      }
+    } else if (!activeStationRef.current && !userPosition) {
+      // Domyślna Warszawa Centralna do czasu złapania GPS
+      const defaultSt = allStations.find((s) => s.name === 'Warszawa Centralna') || allStations[0];
+      setActiveStationState(defaultSt);
+    }
+  }, [userPosition]);
+
+  // Funkcja pobierania świeżych danych z serwera PKP PLK dla aktywnej stacji
+  const fetchTrains = useCallback(async () => {
+    const currentSt = activeStationRef.current;
+    if (!currentSt) return;
+
+    setIsLoading(true);
+    try {
+      const response = await fetchLiveStationTrains(currentSt.id, userPosition);
+      if (response && response.trains) {
+        setTrains(response.trains);
+        setLastSync(new Date());
+      }
+    } catch (err) {
+      console.warn('[useLiveTrains] Błąd pobierania danych ze stacji:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userPosition]);
+
+  // Pobranie przy zmianie aktywnej stacji
+  useEffect(() => {
+    if (activeStation) {
+      fetchTrains();
+    }
+  }, [activeStation, fetchTrains]);
+
+  // Cykliczne odpytywanie serwera co 15 sekund
+  useEffect(() => {
+    const serverSyncInterval = setInterval(() => {
+      fetchTrains();
+    }, 15000);
+
+    return () => clearInterval(serverSyncInterval);
+  }, [fetchTrains]);
+
+  // Płynna mikro-interpolacja pozycji składów co 1.5 sekundy
+  useEffect(() => {
+    const deadReckoningInterval = setInterval(() => {
+      setTrains((prevTrains) => {
+        if (prevTrains.length === 0) return prevTrains;
+        return advanceTrainsPosition(prevTrains, 1.5);
+      });
+    }, 1500);
+
+    return () => clearInterval(deadReckoningInterval);
+  }, []);
 
   const addSpottedTrain = useCallback((newTrain: Train) => {
     setTrains((prev) => [newTrain, ...prev.filter((t) => t.id !== newTrain.id)]);
   }, []);
 
-  useEffect(() => {
-    // Okresowe odpytywanie i interpolacja ruchu pociągów po szlakach co 3.5 sekundy
-    const interval = setInterval(async () => {
-      try {
-        setTrains((current) => {
-          fetchLiveTrains(current).then((updated) => {
-            setTrains(updated);
-          });
-          return current;
-        });
-      } catch (err) {
-        console.warn('[useLiveTrains] Błąd aktualizacji pozycji pociągów:', err);
-      }
-    }, 3500);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  return { trains, addSpottedTrain };
+  return {
+    trains,
+    activeStation,
+    setActiveStation,
+    isLoading,
+    lastSync,
+    refreshNow: fetchTrains,
+    addSpottedTrain,
+  };
 };
 
 export const useLiveTrains = useMockTrains;

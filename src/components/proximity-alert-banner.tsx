@@ -8,12 +8,15 @@ import { evaluateProximitySafety } from '@/services/proximity-engine';
 import { useGeolocation } from '@/hooks/use-geolocation';
 import { alertAudio } from '@/services/alert-audio';
 
+import { GeocodedStation } from '@/services/pkp-api';
+
 interface ProximityAlertBannerProps {
   trains: Train[];
   onOpenSos?: () => void;
+  activeStation?: GeocodedStation | null;
 }
 
-export function ProximityAlertBanner({ trains, onOpenSos }: ProximityAlertBannerProps) {
+export function ProximityAlertBanner({ trains, onOpenSos, activeStation }: ProximityAlertBannerProps) {
   const { position: userPosition } = useGeolocation();
   const [alertState, setAlertState] = useState<ProximityAlertState>({
     level: 'safe',
@@ -25,9 +28,9 @@ export function ProximityAlertBanner({ trains, onOpenSos }: ProximityAlertBanner
 
   useEffect(() => {
     const isTemporarilyDismissed = Date.now() < dismissedUntil;
-    const evaluated = evaluateProximitySafety(userPosition, trains, isMuted || isTemporarilyDismissed);
+    const evaluated = evaluateProximitySafety(userPosition, trains, isMuted || isTemporarilyDismissed, activeStation);
     setAlertState(evaluated);
-  }, [userPosition, trains, isMuted, dismissedUntil]);
+  }, [userPosition, trains, isMuted, dismissedUntil, activeStation]);
 
   const toggleSound = () => {
     const nextMuted = !isMuted;
