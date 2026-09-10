@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-static';
 import stationsData from '@/lib/plk-stations-all.json';
 import { calculateDistanceMeters } from '@/services/pkp-api';
 

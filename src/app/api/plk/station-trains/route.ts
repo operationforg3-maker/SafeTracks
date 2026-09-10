@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-static';
 import stationsData from '@/lib/plk-stations-all.json';
 import { calculateBearing, calculateDistanceMeters } from '@/services/pkp-api';
 import type { Train } from '@/lib/types';
