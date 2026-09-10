@@ -58,26 +58,33 @@ export function RadarLoader({
 
   const allReady = minTimeElapsed && gpsDone && stationDone && trainsDone;
 
+  const onFinishRef = React.useRef(onFinish);
+  onFinishRef.current = onFinish;
+  const hasTriggeredExitRef = React.useRef(false);
+
   useEffect(() => {
-    if (allReady && !isExiting && !isDismissed) {
+    if (allReady && !hasTriggeredExitRef.current) {
+      hasTriggeredExitRef.current = true;
       const exitTimer = setTimeout(() => {
         setIsExiting(true);
         setTimeout(() => {
           setIsDismissed(true);
-          onFinish?.();
+          onFinishRef.current?.();
         }, 500);
-      }, 600);
+      }, 400);
 
       return () => clearTimeout(exitTimer);
     }
-  }, [allReady, isExiting, isDismissed, onFinish]);
+  }, [allReady]);
 
   const handleManualSkip = () => {
+    if (hasTriggeredExitRef.current && isDismissed) return;
+    hasTriggeredExitRef.current = true;
     setIsExiting(true);
     setTimeout(() => {
       setIsDismissed(true);
-      onFinish?.();
-    }, 300);
+      onFinishRef.current?.();
+    }, 250);
   };
 
   if (isDismissed) return null;
