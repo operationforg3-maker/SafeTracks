@@ -10,6 +10,7 @@ import { PwaInstallBanner } from '@/components/pwa-install-banner';
 import { TrainSpotDialog } from '@/components/train-spot-dialog';
 import { TrainDetailDrawer } from '@/components/train-detail-drawer';
 import { StationSearchDialog } from '@/components/station-search-dialog';
+import { RadarLoader } from '@/components/radar-loader';
 import { useGeolocation } from '@/hooks/use-geolocation';
 import type { Train } from '@/lib/types';
 import { Map, ListFilter, Columns2, PackageCheck, Search } from 'lucide-react';
@@ -22,13 +23,14 @@ export default function Home() {
   const [isStationSearchOpen, setIsStationSearchOpen] = useState(false);
   const [selectedTrain, setSelectedTrain] = useState<Train | null>(null);
   const [mobileView, setMobileView] = useState<'split' | 'map' | 'radar'>('split');
+  const [isRadarReady, setIsRadarReady] = useState(false);
 
-  const { position: userPosition } = useGeolocation();
+  const { position: userPosition, loading: geoLoading } = useGeolocation();
   const {
     trains,
     activeStation,
     setActiveStation,
-    isLoading,
+    isLoading: isLoadingTrains,
     lastSync,
     refreshNow,
     addSpottedTrain,
@@ -36,6 +38,16 @@ export default function Home() {
 
   return (
     <div className="flex h-screen w-full flex-col bg-background overflow-hidden selection:bg-primary selection:text-primary-foreground">
+      {/* Pełnoekranowy loader telemetryczny radaru (GPS + PLK + Pociągi) */}
+      <RadarLoader
+        userPosition={userPosition}
+        geoLoading={geoLoading}
+        activeStation={activeStation}
+        trains={trains}
+        isLoadingTrains={isLoadingTrains}
+        onFinish={() => setIsRadarReady(true)}
+      />
+
       <Header
         enthusiastMode={enthusiastMode}
         onEnthusiastModeChange={setEnthusiastMode}
@@ -51,7 +63,7 @@ export default function Home() {
       />
 
       {/* Przełącznik widoku na urządzeniach mobilnych */}
-      <div className="flex sm:hidden items-center justify-between bg-muted/90 p-1.5 px-2 border-b text-xs gap-1">
+      <div className="flex sm:hidden items-center justify-between bg-muted/80 backdrop-blur-sm p-1.5 px-2 border-b text-xs gap-1">
         <div className="flex items-center gap-1">
           <Button
             size="sm"
@@ -86,7 +98,7 @@ export default function Home() {
           <Button
             size="sm"
             variant="outline"
-            className="h-7 text-[11px] px-2 gap-1 border-slate-700 bg-slate-900 text-slate-200"
+            className="h-7 text-[11px] px-2 gap-1 border-border bg-card text-foreground hover:bg-muted"
             onClick={() => setIsStationSearchOpen(true)}
             title="Zmień posterunek PLK"
           >
@@ -97,7 +109,7 @@ export default function Home() {
           <Button
             size="sm"
             variant="outline"
-            className="h-7 text-[11px] px-1.5 gap-1 border-amber-500/40 text-amber-500 bg-amber-500/10"
+            className="h-7 text-[11px] px-1.5 gap-1 border-amber-500/40 text-amber-500 bg-amber-500/10 hover:bg-amber-500/20"
             onClick={() => setIsSpotDialogOpen(true)}
             title="Spotuj skład towarowy"
           >
@@ -142,7 +154,7 @@ export default function Home() {
             onOpenSpotDialog={() => setIsSpotDialogOpen(true)}
             activeStation={activeStation}
             onOpenStationSearch={() => setIsStationSearchOpen(true)}
-            isLoading={isLoading}
+            isLoading={isLoadingTrains}
             lastSync={lastSync}
             onRefresh={refreshNow}
           />

@@ -8,6 +8,7 @@ import { TrainFront, Locate, Layers, ShieldAlert, Settings, PackageCheck, Eye, E
 import { findNearestStations } from '@/services/pkp-api';
 import { Button } from './ui/button';
 import { MapSettingsDialog, MapStyleOption } from './map-settings-dialog';
+import { useTheme } from '@/components/theme-provider';
 import 'leaflet/dist/leaflet.css';
 
 interface RailwayMapProps {
@@ -53,11 +54,22 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
   const hasCenteredOnUserRef = useRef<boolean>(false);
   const nearestStationMarkersRef = useRef<any[]>([]);
 
+  const { effectiveTheme } = useTheme();
   const { position: userPosition } = useGeolocation();
-  const [mapStyle, setMapStyle] = useState<MapStyleOption>('dark'); // Domyślnie profesjonalny tryb Dark Radar
+  const [mapStyle, setMapStyle] = useState<MapStyleOption>(() =>
+    effectiveTheme === 'light' ? 'voyager' : 'dark'
+  );
   const [showRailwayOverlay, setShowRailwayOverlay] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+
+  // Synchronizacja stylu mapy z motywem jasnym/ciemnym (chyba że użytkownik wybrał satelitę)
+  useEffect(() => {
+    setMapStyle((prev) => {
+      if (prev === 'satellite' || prev === 'osm') return prev;
+      return effectiveTheme === 'light' ? 'voyager' : 'dark';
+    });
+  }, [effectiveTheme]);
 
   // Inicjalizacja instancji Leaflet
   useEffect(() => {
@@ -447,17 +459,17 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
       </div>
 
       {/* Dolny HUD: Status i legenda radarowa */}
-      <div className="absolute bottom-3 left-3 z-[1000] bg-slate-900/90 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/60 text-[11px] text-slate-200 shadow-xl flex items-center gap-3">
+      <div className="absolute bottom-3 left-3 z-[1000] bg-card/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-border/80 text-[11px] text-card-foreground shadow-xl flex items-center gap-3">
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block shadow-[0_0_8px_#ef4444] animate-pulse"></span>
+          <span className="w-2.5 h-2.5 rounded-full bg-destructive inline-block shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse"></span>
           <span>Dzikie przejście</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block shadow-[0_0_8px_#f59e0b]"></span>
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block shadow-[0_0_8px_rgba(245,158,11,0.8)]"></span>
           <span>Strefa kolizji (200m)</span>
         </div>
         <div className="flex items-center gap-1.5 hidden sm:flex">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
           <span>Szlaki PLK</span>
         </div>
       </div>

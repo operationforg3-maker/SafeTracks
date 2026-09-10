@@ -15,14 +15,14 @@ interface TrainCardProps {
 }
 
 const alertStyles: Record<AlertLevel, string> = {
-  safe: 'border-border/60 hover:border-primary/40 bg-card/85',
-  warning: 'border-amber-500/60 bg-amber-500/10 shadow-sm',
-  critical: 'border-destructive bg-destructive/15 animate-pulse shadow-md',
+  safe: 'border-border/80 hover:border-primary/50 bg-card hover:shadow-md shadow-sm',
+  warning: 'border-amber-500/60 bg-amber-500/10 dark:bg-amber-500/15 shadow-sm',
+  critical: 'border-destructive bg-destructive/10 dark:bg-destructive/20 animate-pulse shadow-md',
 };
 
 const alertIcons: Record<AlertLevel, React.ReactNode> = {
-  safe: <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />,
-  warning: <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />,
+  safe: <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />,
+  warning: <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />,
   critical: <AlertTriangle className="h-4 w-4 text-destructive animate-bounce shrink-0" />,
 };
 
@@ -77,12 +77,12 @@ export function TrainCard({ train, userPosition, enthusiastMode, onSelect }: Tra
 
   const kmh = Math.round(train.speed * 3.6);
 
-  let typeBadgeColor = 'border-slate-500/40 text-slate-300';
-  if (train.type === 'EIP') typeBadgeColor = 'border-purple-500/60 bg-purple-500/10 text-purple-400';
-  else if (train.type === 'IC') typeBadgeColor = 'border-blue-500/60 bg-blue-500/10 text-blue-400';
-  else if (train.type === 'KM') typeBadgeColor = 'border-emerald-500/60 bg-emerald-500/10 text-emerald-400';
-  else if (train.type === 'Polregio') typeBadgeColor = 'border-red-500/60 bg-red-500/10 text-red-400';
-  else if (train.type === 'Cargo') typeBadgeColor = 'border-amber-500/60 bg-amber-500/10 text-amber-400';
+  let typeBadgeColor = 'border-border text-foreground';
+  if (train.type === 'EIP') typeBadgeColor = 'border-purple-500/50 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-semibold';
+  else if (train.type === 'IC') typeBadgeColor = 'border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold';
+  else if (train.type === 'KM') typeBadgeColor = 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold';
+  else if (train.type === 'Polregio') typeBadgeColor = 'border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300 font-semibold';
+  else if (train.type === 'Cargo') typeBadgeColor = 'border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold';
 
   const hasDelay = (train.delayMinutes || 0) > 0;
 
@@ -91,27 +91,27 @@ export function TrainCard({ train, userPosition, enthusiastMode, onSelect }: Tra
       <Card
         onClick={() => onSelect && onSelect(train)}
         className={cn(
-          "transition-all cursor-pointer border hover:shadow-md backdrop-blur-sm",
+          "transition-all cursor-pointer border rounded-2xl hover:shadow-md backdrop-blur-sm",
           alertStyles[alertLevel]
         )}
       >
         <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1.5">
           <div className="flex items-center gap-1.5 flex-wrap">
             <CardTitle className="text-sm font-bold flex items-center gap-1 font-headline">
-              <Activity className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              <Activity className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
               <span>{train.name ? `${train.id} "${train.name}"` : train.id}</span>
             </CardTitle>
 
-            <Badge variant="outline" className={cn("text-[10px] font-mono px-1.5 py-0 h-4", typeBadgeColor)}>
+            <Badge variant="outline" className={cn("text-[10px] font-mono px-1.5 py-0 h-4 rounded-full", typeBadgeColor)}>
               {train.type}
             </Badge>
 
             {hasDelay ? (
-              <span className="bg-amber-500/15 text-amber-400 border border-amber-500/40 text-[9px] px-1.5 py-0 rounded font-mono font-bold">
+              <span className="bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/40 text-[9px] px-1.5 py-0 rounded font-mono font-bold">
                 +{train.delayMinutes} min
               </span>
             ) : (
-              <span className="text-emerald-400/90 text-[9px] font-mono bg-emerald-500/10 border border-emerald-500/30 px-1 py-0 rounded">
+              <span className="text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 text-[9px] font-mono px-1 py-0 rounded font-semibold">
                 o czasie
               </span>
             )}

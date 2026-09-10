@@ -1,7 +1,8 @@
 // SafeTracks Service Worker (PWA & Offline Support)
-const CACHE_NAME = 'safetracks-v1';
+const CACHE_NAME = 'safetracks-v2';
 const STATIC_ASSETS = [
   '/',
+  '/app',
   '/manifest.json',
   '/favicon.ico',
 ];
@@ -53,7 +54,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Nawigacja strony głównej: Network first, fallback to cache
+  // Nawigacja strony głównej / radaru: Network first, fallback to cache
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -67,6 +68,8 @@ self.addEventListener('fetch', (event) => {
         .catch(async () => {
           const cached = await caches.match(request);
           if (cached) return cached;
+          const appCached = await caches.match('/app');
+          if (appCached) return appCached;
           return caches.match('/');
         })
     );
@@ -103,7 +106,7 @@ self.addEventListener('push', (event) => {
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
     vibrate: [300, 100, 300, 100, 500],
-    data: { url: data.url || '/' },
+    data: { url: data.url || '/app' },
     tag: 'safetracks-alarm',
     renotify: true,
   };
@@ -121,7 +124,7 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
       if (self.clients.openWindow) {
-        return self.clients.openWindow('/');
+        return self.clients.openWindow('/app');
       }
     })
   );

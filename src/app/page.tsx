@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ShareDialog } from '@/components/share-dialog';
@@ -24,6 +25,19 @@ import {
 
 export default function LandingPage() {
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const router = useRouter();
+
+  // Jeśli użytkownik otworzył zainstalowaną aplikację PWA (tryb standalone), natychmiast przenieś do radaru /app
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isStandalone =
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true;
+      if (isStandalone) {
+        window.location.replace('/app');
+      }
+    }
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-red-500 selection:text-white">
