@@ -3,7 +3,7 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Gauge, Route, Train, Clock, AlertTriangle, ShieldCheck, MapPin, Zap, Info } from 'lucide-react';
+import { Gauge, Route, Train, Clock, AlertTriangle, ShieldCheck, MapPin, Zap, Info, Layers } from 'lucide-react';
 import type { Train as TrainType } from '@/lib/types';
 import type { Position } from '@/hooks/use-geolocation';
 import { calculateDistanceMeters } from '@/services/pkp-api';
@@ -102,6 +102,33 @@ export function TrainDetailDrawer({ train, isOpen, onClose, userPosition }: Trai
             </div>
           </div>
         </div>
+
+        {train.conjoinedUnits && train.conjoinedUnits.length > 1 && (
+          <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 space-y-2 mb-3">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400">
+              <Layers className="h-4 w-4" />
+              <span>Skład łączony (trakcja wielokrotna · {train.conjoinedUnits.length} jednostki)</span>
+            </div>
+            <div className="space-y-1.5">
+              {train.conjoinedUnits.map((unit, idx) => (
+                <div key={idx} className="flex items-center justify-between text-xs bg-card/70 p-2 rounded-lg border border-border/50">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-foreground">{unit.id}</span>
+                    {unit.name && <span className="text-[11px] text-muted-foreground">"{unit.name}"</span>}
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span>➔ {unit.destination}</span>
+                    {(unit.delayMinutes || 0) > 0 ? (
+                      <span className="text-amber-500 font-mono font-bold">+{unit.delayMinutes}'</span>
+                    ) : (
+                      <span className="text-emerald-500 font-mono">0'</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-start gap-2.5 text-xs">
           <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />

@@ -206,17 +206,113 @@ export const PLK_PROXY_URL =
   'https://safetracks-plk-proxy-298894101105.europe-west1.run.app';
 
 /**
+ * Łączy pociągi sprzężone (trakcja wielokrotna / ukrotniona, np. 2-3 jednostki EZT jadące razem).
+ * W rozkładzie PKP PLK każdy człon ma osobny numer pociągu (np. Os 77372, Os 77698, Os 77928),
+ * ale fizycznie na torze stanowią jeden skład poruszający się z tą samą prędkością.
+ */
+export function mergeConjoinedTrains(trains: Train[]): Train[] {
+  if (!trains || trains.length <= 1) return trains;
+
+  const used = new Set<string>();
+  const result: Train[] = [];
+
+  for (let i = 0; i < trains.length; i++) {
+    const t1 = trains[i];
+    if (used.has(t1.id)) continue;
+
+    const group = [t1];
+    used.add(t1.id);
+
+    for (let j = i + 1; j < trains.length; j++) {
+      const t2 = trains[j];
+      if (used.has(t2.id)) continue;
+
+      const dist = calculateDistanceMeters(
+        t1.currentPosition.lat,
+        t1.currentPosition.lng,
+        t2.currentPosition.lat,
+        t2.currentPosition.lng
+      );
+
+      // Warunek sprzężenia:
+      // - odległość fizyczna < 150m
+      // - różnica prędkości < 5 m/s (~18 km/h)
+      // - zgodna kategoria lub wspólna stacja
+      const speedDiff = Math.abs(t1.speed - t2.speed);
+      const isClose = dist <= 150;
+      const isSimilarSpeed = speedDiff <= 5;
+      const sameOrigin = t1.origin && t2.origin && t1.origin === t2.origin;
+      const sameCategory = t1.type === t2.type;
+
+      if (isClose && isSimilarSpeed && (sameOrigin || sameCategory || dist < 50)) {
+        group.push(t2);
+        used.add(t2.id);
+      }
+    }
+
+    if (group.length === 1) {
+      result.push(group[0]);
+    } else {
+      const primary = group[0];
+
+      // Wyodrębnij numery: np. "Os 77372", "Os 77698", "Os 77928" -> "Os 77372 / 77698 / 77928"
+      const prefix = primary.id.split(' ')[0] || primary.type;
+      const numbers = group.map((t) => {
+        const parts = t.id.split(' ');
+        return parts.length > 1 ? parts.slice(1).join(' ') : t.id;
+      });
+      const combinedId = `${prefix} ${numbers.join(' / ')}`;
+
+      // Połącz relacje / stacje docelowe
+      const origins = Array.from(new Set(group.map((t) => t.origin).filter(Boolean))) as string[];
+      const destinations = Array.from(new Set(group.map((t) => t.destination).filter(Boolean))) as string[];
+
+      const originStr = origins.length > 0 ? origins.join(' / ') : primary.route.split('➔')[0]?.trim();
+      const destStr = destinations.length > 0 ? destinations.join(' / ') : primary.route.split('➔')[1]?.trim();
+      const combinedRoute = `${originStr} ➔ ${destStr}`;
+
+      const combinedRollingStock =
+        group.length > 1
+          ? `${group.length}x ${primary.operator || 'Tabor'} (Skład łączony)`
+          : primary.rollingStock;
+
+      const mergedTrain: Train = {
+        ...primary,
+        id: combinedId,
+        route: combinedRoute,
+        rollingStock: combinedRollingStock,
+        conjoinedCount: group.length,
+        conjoinedUnits: group.map((t) => ({
+          id: t.id,
+          name: t.name,
+          destination: t.destination || t.route.split('➔')[1]?.trim(),
+          delayMinutes: t.delayMinutes,
+        })),
+        delayMinutes: Math.max(...group.map((t) => t.delayMinutes || 0)),
+      };
+
+      result.push(mergedTrain);
+    }
+  }
+
+  return result;
+}
+
+/**
  * Rzutuje pociągi na rzeczywiste, fizyczne torowisko kolejowe (OpenRailwayMap / PLK geodezja)
- * Eliminując wszelkie proste linie między stacjami i fałszywe zakręty przez jeziora/zabudowę.
+ * oraz łączy sprzężone jednostki trakcyjne jadące razem.
  */
 export function smoothAndSnapTrains(trains: Train[]): Train[] {
-  return trains.map((t) => {
+  // 1. Połącz składy sprzężone poruszające się razem w trakcji wielokrotnej
+  const mergedTrains = mergeConjoinedTrains(trains);
+
+  return mergedTrains.map((t) => {
     if (!t.path || t.path.length < 2) return t;
 
-    // 1. Zastąp rzadkie przystanki rzeczywistym ciągiem fizycznych punktów torowiska
+    // 2. Zastąp rzadkie przystanki rzeczywistym ciągiem fizycznych punktów torowiska
     const physicalTrack = enrichPathWithPhysicalRails(t.path);
 
-    // 2. Rzutuj pozycję pociągu na najbliższy punkt fizycznego toru
+    // 3. Rzutuj pozycję pociągu na najbliższy punkt fizycznego toru
     const snapped = snapTrainToPath(t.currentPosition, physicalTrack);
 
     return {

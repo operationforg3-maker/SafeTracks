@@ -1,7 +1,7 @@
 const http = require('http');
 const url = require('url');
 const stationsData = require('./plk-stations-all.json');
-const { getTrackSegmentBetweenPoints, enrichPathWithPhysicalRails } = require('./rail-router');
+const { getTrackSegmentBetweenPoints, enrichPathWithPhysicalRails, mergeConjoinedTrains } = require('./rail-router');
 
 const PORT = process.env.PORT || 8080;
 const PLK_API_BASE_URL = 'https://pdp-api.plk-sa.pl/api/v1';
@@ -47,6 +47,17 @@ function calculateBearing(startLat, startLng, destLat, destLng) {
 
   let brng = (Math.atan2(y, x) * 180) / Math.PI;
   return Math.round((brng + 360) % 360);
+}
+
+function parsePlkDate(timeStr) {
+  if (!timeStr) return null;
+  const hasTz = timeStr.endsWith('Z') || timeStr.includes('+') || (timeStr.length > 19 && timeStr[19] === '-');
+  if (hasTz) return new Date(timeStr);
+  const dApprox = new Date(timeStr + 'Z');
+  const month = dApprox.getUTCMonth();
+  const isSummer = month >= 3 && month <= 9;
+  const tzOffset = isSummer ? '+02:00' : '+01:00';
+  return new Date(timeStr + tzOffset);
 }
 
 function getCarrierFullName(code) {
@@ -214,7 +225,8 @@ async function handleStationTrains(req, res, parsedUrl) {
 
       if (!depTimeStr) continue;
 
-      const stopTimeDate = new Date(depTimeStr);
+      const stopTimeDate = parsePlkDate(depTimeStr);
+      if (!stopTimeDate) continue;
       const diffMs = stopTimeDate.getTime() - nowMs;
       const diffMinutes = diffMs / 60000;
 
@@ -254,8 +266,8 @@ async function handleStationTrains(req, res, parsedUrl) {
         const st = opStations[i];
         const tStr = st.actualDeparture || st.actualArrival || st.plannedDeparture || st.plannedArrival;
         if (tStr) {
-          const tDate = new Date(tStr).getTime();
-          if (st.isConfirmed || tDate <= nowMs) {
+          const tDate = parsePlkDate(tStr)?.getTime();
+          if (st.isConfirmed || (tDate && tDate <= nowMs)) {
             lastVisitedIndex = i;
           }
         }
@@ -268,12 +280,12 @@ async function handleStationTrains(req, res, parsedUrl) {
         const nextStation = stationsById.get(nextStop.stationId);
 
         if (prevStation && nextStation) {
-          const prevDepTime = new Date(
+          const prevDepTime = parsePlkDate(
             prevStop.actualDeparture || prevStop.plannedDeparture || prevStop.actualArrival || prevStop.plannedArrival
-          ).getTime();
-          const nextArrTime = new Date(
+          )?.getTime() || nowMs;
+          const nextArrTime = parsePlkDate(
             nextStop.actualArrival || nextStop.plannedArrival || nextStop.actualDeparture || nextStop.plannedDeparture
-          ).getTime();
+          )?.getTime() || (nowMs + 600000);
 
           const totalDuration = Math.max(1, nextArrTime - prevDepTime);
           const elapsed = Math.max(0, Math.min(totalDuration, nowMs - prevDepTime));
@@ -346,8 +358,11 @@ async function handleStationTrains(req, res, parsedUrl) {
       });
     }
 
-    // Sortowanie według odległości od badanej stacji
-    trains.sort((a, b) => {
+    // 1. Łączenie składów sprzężonych (trakcja wielokrotna / ukrotniona)
+    const mergedTrains = mergeConjoinedTrains(trains);
+
+    // 2. Sortowanie według odległości od badanej stacji
+    mergedTrains.sort((a, b) => {
       const distA = calculateDistanceMeters(station.lat, station.lng, a.currentPosition.lat, a.currentPosition.lng);
       const distB = calculateDistanceMeters(station.lat, station.lng, b.currentPosition.lat, b.currentPosition.lng);
       return distA - distB;
@@ -360,8 +375,8 @@ async function handleStationTrains(req, res, parsedUrl) {
         lat: station.lat,
         lng: station.lng,
       },
-      trains,
-      totalFound: trains.length,
+      trains: mergedTrains,
+      totalFound: mergedTrains.length,
       generatedAt: new Date().toISOString(),
       cached: false,
     };

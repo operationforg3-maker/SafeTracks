@@ -17,6 +17,13 @@ export type Train = {
   destination?: string;
   origin?: string;
   delayMinutes?: number;
+  conjoinedCount?: number;
+  conjoinedUnits?: {
+    id: string;
+    name?: string;
+    destination?: string;
+    delayMinutes?: number;
+  }[];
 };
 
 export type HazardReport = {

@@ -635,7 +635,8 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
                        ⚡ MIJA CIĘ! ${kmh} km/h
                      </div>`
                   : `<div style="background: rgba(15, 23, 42, 0.94); color: #F8FAFC; border: 1.5px solid ${carrierColor}; border-radius: 6px; padding: 2px 6px; font-weight: 700; font-size: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 4px; backdrop-filter: blur(4px);">
-                       <span style="font-family: monospace; letter-spacing: 0.3px;">${train.id}</span>
+                       <span style="font-family: monospace; letter-spacing: 0.3px;">${train.conjoinedCount && train.conjoinedCount > 1 ? `${train.id.split(' ')[0]} ${train.id.split(' ')[1]} (+${train.conjoinedCount - 1})` : train.id}</span>
+                       ${train.conjoinedCount && train.conjoinedCount > 1 ? `<span style="background: rgba(59, 130, 246, 0.3); color: #93C5FD; font-size: 8.5px; padding: 1px 4px; border-radius: 3px; font-weight: 800;">x${train.conjoinedCount}</span>` : ''}
                        <span style="opacity: 0.4;">•</span>
                        <span style="background: rgba(255,255,255,0.15); font-size: 9px; padding: 1px 4px; border-radius: 3px; font-family: monospace;">${kmh} km/h</span>
                      </div>`

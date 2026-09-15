@@ -99,6 +99,11 @@ export function TrainCard({ train, userPosition, enthusiastMode, onSelect }: Tra
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           <span className="text-sm font-bold font-headline truncate">{train.id}</span>
+          {train.conjoinedCount && train.conjoinedCount > 1 && (
+            <Badge variant="secondary" className="text-[8px] font-mono px-1 py-0 h-3.5 bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 shrink-0">
+              x{train.conjoinedCount} składy
+            </Badge>
+          )}
           {train.name && <span className="text-xs text-muted-foreground truncate hidden sm:inline">"{train.name}"</span>}
           {(train.delayMinutes || 0) > 0 && (
             <span className="text-[9px] text-amber-600 dark:text-amber-400 font-mono font-bold">+{train.delayMinutes}'</span>
