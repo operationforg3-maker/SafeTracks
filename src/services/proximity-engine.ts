@@ -2,6 +2,7 @@ import { Train, ProximityAlertState, AlertLevel } from '@/lib/types';
 import { railwayCrossings } from '@/lib/data';
 import { calculateDistanceMeters, findNearestStation, isTrainApproaching, GeocodedStation } from './pkp-api';
 import { alertAudio } from './alert-audio';
+import { getStoredGeofenceRadius } from './geofence-settings';
 
 export interface UserCoordinates {
   lat: number;
@@ -9,133 +10,152 @@ export interface UserCoordinates {
 }
 
 /**
- * Analizuje odległość i wektory ruchu rzeczywistych pociągów względem użytkownika.
- * Zwraca status zagrożenia i w razie potrzeby wyzwala sygnalizację alarmową.
+ * Silnik bezpieczeństwa SafeTracks v3.
+ *
+ * ZASADA: alarm wyzwala się TYLKO gdy spełnione są OBA warunki jednocześnie:
+ *   1. Użytkownik jest blisko infrastruktury kolejowej (torów / przejazdu / stacji)
+ *   2. Pociąg zbliża się na tych torach w strefie geofencingu
+ *
+ * Sama bliskość pociągu BEZ bliskości torów = brak alarmu.
+ * Użytkownik 2 km od torów nie dostanie alarmu nawet jeśli pociąg jedzie 100m równolegle.
  */
 export function evaluateProximitySafety(
   userPos: UserCoordinates | undefined,
   trains: Train[],
   alertMuted = false,
-  activeStation?: GeocodedStation | null
+  activeStation?: GeocodedStation | null,
+  customGeofenceRadius?: number
 ): ProximityAlertState {
   if (!userPos) {
     return {
       level: 'safe',
       isInsideHazardZone: false,
-      message: 'Oczekiwanie na sygnał GPS telefonu...',
+      message: 'Oczekiwanie na sygnał GPS...',
     };
   }
 
-  // 1. Sprawdź czy pieszy znajduje się w bezpośredniej strefie torowiska / przejazdu / posterunku
-  let nearestCrossingDistance = Infinity;
-  let nearestHazardName = '';
+  const geofenceRadius = customGeofenceRadius || getStoredGeofenceRadius();
 
-  // Sprawdź zgłoszone przejazdy
+  // ─── 1. Odległość użytkownika od infrastruktury kolejowej ───
+  let minInfraDist = Infinity;
+
+  // Przejazdy i dzikie przejścia
   for (const crossing of railwayCrossings) {
     const dist = calculateDistanceMeters(
-      userPos.lat,
-      userPos.lng,
-      crossing.location.lat,
-      crossing.location.lng
+      userPos.lat, userPos.lng,
+      crossing.location.lat, crossing.location.lng
     );
-    if (dist < nearestCrossingDistance) {
-      nearestCrossingDistance = dist;
-      nearestHazardName = crossing.name;
+    if (dist < minInfraDist) {
+      minInfraDist = dist;
     }
   }
 
-  // Sprawdź posterunek kolejowy PLK
+  // Stacje PKP PLK (reprezentują oś torowiska)
   const nearestPLKStation = activeStation || findNearestStation(userPos.lat, userPos.lng);
-  const distToStation = calculateDistanceMeters(userPos.lat, userPos.lng, nearestPLKStation.lat, nearestPLKStation.lng);
-
-  if (distToStation < nearestCrossingDistance) {
-    nearestCrossingDistance = distToStation;
-    nearestHazardName = `Stacja / Posterunek: ${nearestPLKStation.name}`;
+  if (nearestPLKStation) {
+    const distToStation = calculateDistanceMeters(
+      userPos.lat, userPos.lng,
+      nearestPLKStation.lat, nearestPLKStation.lng
+    );
+    if (distToStation < minInfraDist) {
+      minInfraDist = distToStation;
+    }
   }
 
-  // Pieszy jest w strefie torowiska jeśli jest w promieniu 350m od posterunku/przejazdu lub w promieniu 400m od pociągu
-  let isInsideHazardZone = nearestCrossingDistance <= 350;
+  // ─── WARUNEK KONIECZNY: czy user jest w pobliżu torów? ───
+  const userNearTracks = minInfraDist <= geofenceRadius;
 
-  // 2. Analiza zbliżających się pociągów
+  // Jeśli user jest daleko od jakiejkolwiek infrastruktury kolejowej → SAFE, koniec.
+  if (!userNearTracks) {
+    return {
+      level: 'safe',
+      isInsideHazardZone: false,
+      message: 'Bezpiecznie — brak torowiska w pobliżu.',
+    };
+  }
+
+  // ─── 2. User jest blisko torów — szukamy zagrożeń pociągowych ───
   let mostCriticalTrain: Train | null = null;
+  let minTrainDist = Infinity;
   let minEtaSeconds = Infinity;
-  let minDistanceMeters = Infinity;
+  let hasApproachingInZone = false;
 
   for (const train of trains) {
     const dist = calculateDistanceMeters(
-      userPos.lat,
-      userPos.lng,
-      train.currentPosition.lat,
-      train.currentPosition.lng
+      userPos.lat, userPos.lng,
+      train.currentPosition.lat, train.currentPosition.lng
     );
 
-    if (dist < minDistanceMeters) {
-      minDistanceMeters = dist;
-    }
+    const speed = Math.max(train.speed, 8);
+    const eta = dist / speed;
 
-    if (dist <= 400) {
-      isInsideHazardZone = true;
-    }
-
-    const speed = Math.max(train.speed, 8); // min 8 m/s (~30 km/h)
-    const etaSeconds = dist / speed;
-
-    // Sprawdź czy skład faktycznie porusza się W KIERUNKU pieszego
     const approaching = isTrainApproaching(
-      userPos.lat,
-      userPos.lng,
-      train.currentPosition.lat,
-      train.currentPosition.lng,
+      userPos.lat, userPos.lng,
+      train.currentPosition.lat, train.currentPosition.lng,
       train.heading || 0
     );
 
-    // Alarmujemy o zbliżających się pociągach lub pociągach w bezpośredniej odległości < 60m
-    if (approaching || dist < 60) {
-      if (etaSeconds < minEtaSeconds) {
-        minEtaSeconds = etaSeconds;
+    // Pociąg kwalifikuje się do alarmu jeśli jest w strefie geofencingu
+    const inZone = dist <= geofenceRadius;
+    const imminentlyApproaching = dist <= geofenceRadius * 1.2 && approaching && eta <= 30;
+
+    if (inZone || imminentlyApproaching) {
+      if (eta < minEtaSeconds || !mostCriticalTrain) {
+        minEtaSeconds = eta;
+        minTrainDist = dist;
         mostCriticalTrain = train;
+        if (approaching) hasApproachingInZone = true;
       }
+    }
+
+    if (dist < minTrainDist && !mostCriticalTrain) {
+      minTrainDist = dist;
     }
   }
 
-  // 3. Klasyfikacja poziomu alarmowego
+  // User jest przy torach ale żaden pociąg nie jest w strefie
+  if (!mostCriticalTrain) {
+    return {
+      level: 'safe',
+      isInsideHazardZone: true,
+      distanceMeters: minTrainDist !== Infinity ? Math.round(minTrainDist) : undefined,
+      message: 'Jesteś w pobliżu torowiska. Brak pociągów w strefie.',
+    };
+  }
+
+  // ─── 3. Klasyfikacja zagrożenia ───
+  const trainLabel = mostCriticalTrain.name
+    ? `${mostCriticalTrain.id} "${mostCriticalTrain.name}"`
+    : mostCriticalTrain.id;
+
   let level: AlertLevel = 'safe';
-  let message = 'Tory i szlaki w bezpiecznej odległości.';
+  let message = '';
 
-  if (mostCriticalTrain) {
-    const trainLabel = mostCriticalTrain.name
-      ? `${mostCriticalTrain.id} "${mostCriticalTrain.name}"`
-      : mostCriticalTrain.id;
+  // KRYTYCZNY: pociąg bardzo blisko LUB zbliża się w < 15s
+  if (minTrainDist <= geofenceRadius * 0.5 || (hasApproachingInZone && minEtaSeconds <= 15)) {
+    level = 'critical';
+    message = `UWAGA! ${trainLabel} — ${Math.round(minTrainDist)}m (ETA ${Math.round(minEtaSeconds)}s)! OPUŚĆ TOROWISKO!`;
 
-    // Poziom krytyczny: pociąg zbliża się w czasie < 35 sekund lub jest < 250 metrów
-    if (minEtaSeconds <= 35 || (isInsideHazardZone && minDistanceMeters <= 250)) {
-      level = 'critical';
-      message = `UWAGA! Nadjeżdża ${trainLabel}! ETA: ${Math.round(minEtaSeconds)}s (~${Math.round(minDistanceMeters)}m)! NATYCHMIAST OPUŚĆ TOROWISKO!`;
-
-      if (!alertMuted) {
-        alertAudio.playCriticalAlarm();
-      }
-    } else if (minEtaSeconds <= 120 || (isInsideHazardZone && minDistanceMeters <= 800)) {
-      level = 'warning';
-      const etaMin = Math.max(1, Math.round(minEtaSeconds / 60));
-      message = `Zbliża się pociąg ${trainLabel} (odległość ${Math.round(minDistanceMeters)}m, ETA ~${etaMin} min). Zachowaj szczególną ostrożność.`;
-
-      if (!alertMuted) {
-        alertAudio.playWarningSound();
-      }
-    } else if (isInsideHazardZone) {
-      message = `Jesteś w pobliżu torów (${Math.round(nearestCrossingDistance)}m - ${nearestHazardName}). Radar aktywny.`;
+    if (!alertMuted) {
+      alertAudio.playCriticalAlarm();
     }
-  } else if (isInsideHazardZone) {
-    message = `Jesteś w strefie torowiska (${nearestHazardName}). W promieniu 2 km brak zbliżających się pociągów.`;
+  }
+  // OSTRZEGAWCZY: pociąg w strefie
+  else if (minTrainDist <= geofenceRadius || (hasApproachingInZone && minEtaSeconds <= 30)) {
+    level = 'warning';
+    message = `Pociąg ${trainLabel} — ${Math.round(minTrainDist)}m, ETA ~${Math.round(minEtaSeconds)}s`;
+
+    if (!alertMuted) {
+      alertAudio.playWarningSound();
+    }
   }
 
   return {
     level,
     nearestTrain: mostCriticalTrain || undefined,
-    distanceMeters: minDistanceMeters !== Infinity ? Math.round(minDistanceMeters) : undefined,
+    distanceMeters: Math.round(minTrainDist),
     estimatedTimeToArrivalSeconds: minEtaSeconds !== Infinity ? Math.round(minEtaSeconds) : undefined,
-    isInsideHazardZone,
+    isInsideHazardZone: true,
     message,
   };
 }

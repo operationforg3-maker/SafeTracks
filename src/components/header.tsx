@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Siren, Menu, Train, MessageSquarePlus, Sparkles, Home, Activity, Sun, Moon } from 'lucide-react';
+import { Siren, Menu, Train, MessageSquarePlus, Sparkles, Home, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -18,6 +18,7 @@ interface HeaderProps {
   onEnthusiastModeChange: (value: boolean) => void;
   isSosOpen?: boolean;
   onSosOpenChange?: (open: boolean) => void;
+  alertLevel?: 'safe' | 'warning' | 'critical';
 }
 
 export function Header({
@@ -25,6 +26,7 @@ export function Header({
   onEnthusiastModeChange,
   isSosOpen: externalSosOpen,
   onSosOpenChange: setExternalSosOpen,
+  alertLevel = 'safe',
 }: HeaderProps) {
   const [internalSosOpen, setInternalSosOpen] = useState(false);
   const [isHazardReportOpen, setIsHazardReportOpen] = useState(false);
@@ -34,80 +36,61 @@ export function Header({
   const isSosOpen = externalSosOpen !== undefined ? externalSosOpen : internalSosOpen;
   const setIsSosOpen = setExternalSosOpen || setInternalSosOpen;
 
-  const pkpConfig = getPkpConfig();
-
   useEffect(() => {
     fetchLivePlkStats().then((stats) => {
       if (stats) setPlkStats(stats);
     });
   }, []);
 
+  const isCritical = alertLevel === 'critical';
+
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b bg-card/95 backdrop-blur-md supports-[backdrop-filter]:bg-card/75 transition-colors">
-        <div className="container flex h-14 sm:h-16 items-center justify-between px-3 sm:px-6">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Link href="/" className="rounded-xl bg-primary p-2 text-primary-foreground shadow-md shadow-primary/25 hover:opacity-90 transition">
-              <Train className="h-5 w-5" />
+        <div className="container flex h-12 items-center justify-between px-3 sm:px-6">
+          {/* Logo — compact */}
+          <div className="flex items-center gap-2">
+            <Link href="/" className="rounded-lg bg-primary p-1.5 text-primary-foreground shadow-sm hover:opacity-90 transition">
+              <Train className="h-4 w-4" />
             </Link>
-            <div>
-              <div className="flex items-center gap-2">
-                <Link href="/app" className="font-headline text-lg sm:text-xl font-bold text-foreground tracking-tight hover:opacity-90">
-                  SafeTracks
-                </Link>
-                <Badge
-                  variant="outline"
-                  className="text-[10px] px-2 py-0.5 h-5 font-mono hidden xs:flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
-                  title="Oficjalny klucz OpenDataAPI PKP PLK został aktywowany dla SafeTrack"
-                >
-                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>PKP PLK: {plkStats ? `${plkStats.inProgress} pociągów` : 'Aktywne'}</span>
-                </Badge>
-              </div>
-              <p className="text-[10px] text-muted-foreground hidden sm:block">
-                System Ochrony Pieszych & Radar Kolejowy
-              </p>
-            </div>
+            <Link href="/app" className="font-headline text-base font-bold text-foreground tracking-tight hover:opacity-90">
+              SafeTracks
+            </Link>
+            <Badge
+              variant="outline"
+              className="text-[9px] px-1.5 py-0 h-4 font-mono hidden sm:flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span>LIVE{plkStats ? ` · ${plkStats.inProgress}` : ''}</span>
+            </Badge>
           </div>
 
-          <div className="hidden items-center gap-2.5 md:flex">
-            <Link href="/">
-              <Button variant="ghost" size="sm" className="text-xs h-9 gap-1.5 text-muted-foreground hover:text-foreground">
-                <Home className="h-4 w-4" />
-                <span>Strona Główna</span>
-              </Button>
-            </Link>
-
-            {/* Przełącznik motywu Jasny / Ciemny */}
+          {/* Desktop actions */}
+          <div className="hidden items-center gap-2 md:flex">
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon"
               onClick={toggleTheme}
-              className="h-9 px-3 text-xs gap-1.5 border-border hover:bg-muted font-medium transition-all"
-              title={effectiveTheme === 'dark' ? 'Przełącz na motyw jasny' : 'Przełącz na motyw ciemny'}
+              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+              title={effectiveTheme === 'dark' ? 'Motyw jasny' : 'Motyw ciemny'}
             >
               {effectiveTheme === 'dark' ? (
-                <>
-                  <Sun className="h-4 w-4 text-amber-400 transition-transform rotate-0 hover:rotate-45" />
-                  <span>Jasny</span>
-                </>
+                <Sun className="h-4 w-4 text-amber-400" />
               ) : (
-                <>
-                  <Moon className="h-4 w-4 text-indigo-500 transition-transform -rotate-12 hover:rotate-0" />
-                  <span>Ciemny</span>
-                </>
+                <Moon className="h-4 w-4 text-indigo-500" />
               )}
             </Button>
 
-            <div className="flex items-center space-x-2 bg-muted/60 px-3 py-1.5 rounded-full border border-border/80">
+            <div className="flex items-center gap-1.5 bg-muted/60 px-2.5 py-1 rounded-full border border-border/80">
               <Switch
                 id="enthusiast-mode"
                 checked={enthusiastMode}
                 onCheckedChange={onEnthusiastModeChange}
+                className="scale-90"
               />
-              <Label htmlFor="enthusiast-mode" className="cursor-pointer text-xs font-medium flex items-center gap-1">
-                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                <span>Tryb Pasjonata</span>
+              <Label htmlFor="enthusiast-mode" className="cursor-pointer text-[11px] font-medium flex items-center gap-1">
+                <Sparkles className="h-3 w-3 text-amber-500" />
+                <span>Pasjonat</span>
               </Label>
             </div>
 
@@ -115,31 +98,30 @@ export function Header({
               variant="outline"
               size="sm"
               onClick={() => setIsHazardReportOpen(true)}
-              className="text-xs h-9 gap-1.5"
+              className="text-[11px] h-8 gap-1"
             >
-              <MessageSquarePlus className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-              <span>Zgłoś przejście</span>
+              <MessageSquarePlus className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Zgłoś</span>
             </Button>
 
             <Button
               variant="destructive"
               size="sm"
               onClick={() => setIsSosOpen(true)}
-              className="text-xs h-9 font-bold gap-1.5 shadow-md shadow-destructive/20 animate-pulse"
+              className={`text-[11px] h-8 font-bold gap-1 shadow-sm ${isCritical ? 'animate-pulse' : ''}`}
             >
-              <Siren className="h-4 w-4" />
+              <Siren className="h-3.5 w-3.5" />
               <span>SOS 112</span>
             </Button>
           </div>
 
+          {/* Mobile actions */}
           <div className="flex items-center gap-1.5 md:hidden">
-            {/* Przycisk motywu mobile */}
             <Button
               variant="ghost"
               size="icon"
               onClick={toggleTheme}
               className="h-8 w-8 text-foreground hover:bg-muted"
-              title={effectiveTheme === 'dark' ? 'Motyw jasny' : 'Motyw ciemny'}
             >
               {effectiveTheme === 'dark' ? (
                 <Sun className="h-4 w-4 text-amber-400" />
@@ -152,7 +134,7 @@ export function Header({
               variant="destructive"
               size="sm"
               onClick={() => setIsSosOpen(true)}
-              className="h-8 px-2.5 text-xs font-bold gap-1 shadow-sm animate-pulse"
+              className={`h-7 px-2 text-[11px] font-bold gap-1 shadow-sm ${isCritical ? 'animate-pulse' : ''}`}
             >
               <Siren className="h-3.5 w-3.5" />
               <span>SOS</span>
@@ -164,44 +146,24 @@ export function Header({
                   <Menu className="h-4 w-4" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="right" className="w-[290px] bg-card text-card-foreground">
-                <div className="flex flex-col gap-4 pt-4">
+              <SheetContent side="right" className="w-[280px] bg-card text-card-foreground">
+                <div className="flex flex-col gap-3 pt-4">
                   <div className="flex items-center gap-2 border-b pb-3">
                     <div className="rounded-lg bg-primary p-1.5 text-primary-foreground">
                       <Train className="h-4 w-4" />
                     </div>
-                    <span className="font-bold text-base font-headline">SafeTracks</span>
-                    <Badge variant="outline" className="text-[10px] ml-auto text-emerald-500 border-emerald-500/40">
-                      PKP Live
+                    <span className="font-bold text-sm font-headline">SafeTracks</span>
+                    <Badge variant="outline" className="text-[9px] ml-auto text-emerald-500 border-emerald-500/40">
+                      LIVE
                     </Badge>
                   </div>
 
                   <Link href="/" className="w-full">
                     <Button variant="outline" className="w-full justify-start text-xs h-9 gap-2">
                       <Home className="h-4 w-4 text-primary" />
-                      <span>Strona Główna / O Projekcie</span>
+                      <span>Strona Główna</span>
                     </Button>
                   </Link>
-
-                  {/* Przełącznik motywu w panelu bocznym */}
-                  <div className="flex items-center justify-between bg-muted/60 p-3 rounded-xl border">
-                    <div className="flex items-center gap-2 text-xs font-medium">
-                      {effectiveTheme === 'dark' ? (
-                        <Sun className="h-4 w-4 text-amber-400" />
-                      ) : (
-                        <Moon className="h-4 w-4 text-indigo-500" />
-                      )}
-                      <span>Motyw aplikacji</span>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={toggleTheme}
-                      className="h-7 text-xs px-2.5"
-                    >
-                      {effectiveTheme === 'dark' ? '☀️ Jasny' : '🌙 Ciemny'}
-                    </Button>
-                  </div>
 
                   <div className="flex items-center justify-between bg-muted/60 p-3 rounded-xl border">
                     <Label htmlFor="enthusiast-mode-mobile" className="text-xs font-medium flex items-center gap-1.5 cursor-pointer">
@@ -221,7 +183,7 @@ export function Header({
                     onClick={() => setIsHazardReportOpen(true)}
                   >
                     <MessageSquarePlus className="mr-2 h-4 w-4 text-amber-500" />
-                    Zgłoś dzikie przejście / przeszkodę
+                    Zgłoś dzikie przejście
                   </Button>
 
                   <Button
@@ -230,7 +192,7 @@ export function Header({
                     onClick={() => setIsSosOpen(true)}
                   >
                     <Siren className="mr-2 h-4 w-4" />
-                    Moduł SOS (112 / PLK)
+                    SOS — 112
                   </Button>
                 </div>
               </SheetContent>

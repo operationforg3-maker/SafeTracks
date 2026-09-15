@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Header } from '@/components/header';
 import { Dashboard } from '@/components/dashboard';
 import { MapView } from '@/components/map-view';
@@ -12,8 +12,10 @@ import { TrainDetailDrawer } from '@/components/train-detail-drawer';
 import { StationSearchDialog } from '@/components/station-search-dialog';
 import { RadarLoader } from '@/components/radar-loader';
 import { useGeolocation } from '@/hooks/use-geolocation';
+import { evaluateProximitySafety } from '@/services/proximity-engine';
+import { useGeofenceRadius } from '@/services/geofence-settings';
 import type { Train } from '@/lib/types';
-import { Map, ListFilter, Columns2, PackageCheck, Search } from 'lucide-react';
+import { List, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function Home() {
@@ -22,10 +24,11 @@ export default function Home() {
   const [isSpotDialogOpen, setIsSpotDialogOpen] = useState(false);
   const [isStationSearchOpen, setIsStationSearchOpen] = useState(false);
   const [selectedTrain, setSelectedTrain] = useState<Train | null>(null);
-  const [mobileView, setMobileView] = useState<'split' | 'map' | 'radar'>('split');
+  const [showMobileList, setShowMobileList] = useState(false);
   const [isRadarReady, setIsRadarReady] = useState(false);
 
   const { position: userPosition, loading: geoLoading } = useGeolocation();
+  const [geofenceRadius] = useGeofenceRadius();
   const {
     trains,
     activeStation,
@@ -36,9 +39,15 @@ export default function Home() {
     addSpottedTrain,
   } = useMockTrains(userPosition);
 
+  // Determine alert level for header SOS pulse
+  const alertLevel = useMemo(() => {
+    const state = evaluateProximitySafety(userPosition, trains, false, activeStation, geofenceRadius);
+    return state.level;
+  }, [userPosition, trains, activeStation, geofenceRadius]);
+
   return (
-    <div className="flex h-screen w-full flex-col bg-background overflow-hidden selection:bg-primary selection:text-primary-foreground">
-      {/* Pełnoekranowy loader telemetryczny radaru (GPS + PLK + Pociągi) */}
+    <div className="flex h-screen w-full flex-col bg-background overflow-hidden">
+      {/* Loader */}
       <RadarLoader
         userPosition={userPosition}
         geoLoading={geoLoading}
@@ -53,105 +62,75 @@ export default function Home() {
         onEnthusiastModeChange={setEnthusiastMode}
         isSosOpen={isSosOpen}
         onSosOpenChange={setIsSosOpen}
+        alertLevel={alertLevel}
       />
 
-      {/* Krytyczny pasek ostrzegawczy o zbliżających się pociągach */}
+      {/* Alert banner — only shows when warning/critical */}
       <ProximityAlertBanner
         trains={trains}
         onOpenSos={() => setIsSosOpen(true)}
         activeStation={activeStation}
       />
 
-      {/* Przełącznik widoku na urządzeniach mobilnych */}
-      <div className="flex sm:hidden items-center justify-between bg-muted/80 backdrop-blur-sm p-1.5 px-2 border-b text-xs gap-1">
-        <div className="flex items-center gap-1">
-          <Button
-            size="sm"
-            variant={mobileView === 'split' ? 'default' : 'ghost'}
-            className="h-7 text-[11px] px-2 gap-1"
-            onClick={() => setMobileView('split')}
-          >
-            <Columns2 className="h-3.5 w-3.5" />
-            <span>Podział</span>
-          </Button>
-          <Button
-            size="sm"
-            variant={mobileView === 'map' ? 'default' : 'ghost'}
-            className="h-7 text-[11px] px-2 gap-1"
-            onClick={() => setMobileView('map')}
-          >
-            <Map className="h-3.5 w-3.5" />
-            <span>Mapa</span>
-          </Button>
-          <Button
-            size="sm"
-            variant={mobileView === 'radar' ? 'default' : 'ghost'}
-            className="h-7 text-[11px] px-2 gap-1"
-            onClick={() => setMobileView('radar')}
-          >
-            <ListFilter className="h-3.5 w-3.5" />
-            <span>Radar ({trains.length})</span>
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-1">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-[11px] px-2 gap-1 border-border bg-card text-foreground hover:bg-muted"
-            onClick={() => setIsStationSearchOpen(true)}
-            title="Zmień posterunek PLK"
-          >
-            <Search className="h-3 w-3 text-primary" />
-            <span className="truncate max-w-[85px]">{activeStation ? activeStation.name : 'Stacja'}</span>
-          </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-[11px] px-1.5 gap-1 border-amber-500/40 text-amber-500 bg-amber-500/10 hover:bg-amber-500/20"
-            onClick={() => setIsSpotDialogOpen(true)}
-            title="Spotuj skład towarowy"
-          >
-            <PackageCheck className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
-
-      <main className="flex flex-1 flex-col overflow-hidden relative">
-        {/* Kontener Mapy */}
-        <div
-          className={`relative transition-all duration-200 border-b ${
-            mobileView === 'radar'
-              ? 'hidden sm:flex sm:flex-[3]'
-              : mobileView === 'map'
-              ? 'flex-1'
-              : 'flex-[3]'
-          }`}
-        >
+      <main className="flex flex-1 overflow-hidden relative">
+        {/* Map — always full width */}
+        <div className="flex-1 relative">
           <MapView
             trains={trains}
             enthusiastMode={enthusiastMode}
             onTrainSelect={(train) => setSelectedTrain(train)}
             onOpenSpotDialog={() => setIsSpotDialogOpen(true)}
+            selectedTrain={selectedTrain}
           />
+
+          {/* Mobile: floating button to open train list */}
+          <div className="absolute bottom-4 left-4 z-[500] sm:hidden">
+            <Button
+              size="sm"
+              onClick={() => setShowMobileList(!showMobileList)}
+              className="h-10 px-4 shadow-xl bg-card text-card-foreground border border-border gap-2 font-bold text-xs hover:bg-muted"
+            >
+              {showMobileList ? (
+                <>
+                  <X className="h-4 w-4" />
+                  <span>Zamknij</span>
+                </>
+              ) : (
+                <>
+                  <List className="h-4 w-4" />
+                  <span>Lista ({trains.length})</span>
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Mobile: slide-up train list overlay */}
+          {showMobileList && (
+            <div className="absolute inset-x-0 bottom-0 z-[500] sm:hidden h-[55%] bg-card/98 backdrop-blur-md border-t rounded-t-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+              <div className="w-12 h-1 bg-muted-foreground/30 rounded-full mx-auto mt-2 mb-1" />
+              <Dashboard
+                trains={trains}
+                enthusiastMode={enthusiastMode}
+                onTrainSelect={(train) => {
+                  setSelectedTrain(train);
+                  setShowMobileList(false);
+                }}
+                activeStation={activeStation}
+                onOpenStationSearch={() => setIsStationSearchOpen(true)}
+                isLoading={isLoadingTrains}
+                lastSync={lastSync}
+                onRefresh={refreshNow}
+              />
+            </div>
+          )}
         </div>
 
-        {/* Kontener Radaru / Dashboardu */}
-        <div
-          className={`relative transition-all duration-200 ${
-            mobileView === 'map'
-              ? 'hidden sm:flex sm:flex-[2]'
-              : mobileView === 'radar'
-              ? 'flex-1'
-              : 'flex-[2]'
-          }`}
-        >
+        {/* Desktop: sidebar */}
+        <div className="hidden sm:flex sm:w-[360px] lg:w-[400px] border-l">
           <Dashboard
             trains={trains}
             enthusiastMode={enthusiastMode}
             onTrainSelect={(train) => setSelectedTrain(train)}
-            onOpenSpotDialog={() => setIsSpotDialogOpen(true)}
             activeStation={activeStation}
             onOpenStationSearch={() => setIsStationSearchOpen(true)}
             isLoading={isLoadingTrains}
@@ -161,16 +140,12 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Szybki dialog spotowania składu towarowego/pasażerskiego */}
       <TrainSpotDialog
         open={isSpotDialogOpen}
         onOpenChange={setIsSpotDialogOpen}
-        onTrainSpotted={(newTrain) => {
-          addSpottedTrain(newTrain);
-        }}
+        onTrainSpotted={(newTrain) => addSpottedTrain(newTrain)}
       />
 
-      {/* Dialog wyszukiwania i wyboru posterunku / stacji w Polsce */}
       <StationSearchDialog
         open={isStationSearchOpen}
         onOpenChange={setIsStationSearchOpen}
@@ -179,7 +154,6 @@ export default function Home() {
         userPosition={userPosition}
       />
 
-      {/* Drawer ze szczegółami wybranego pociągu (Flightradar style) */}
       <TrainDetailDrawer
         train={selectedTrain}
         isOpen={Boolean(selectedTrain)}
@@ -187,7 +161,6 @@ export default function Home() {
         userPosition={userPosition}
       />
 
-      {/* Baner instalacji PWA na telefonie */}
       <PwaInstallBanner />
     </div>
   );

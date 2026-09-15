@@ -8,6 +8,8 @@ class AlertAudioService {
   private activeOscillators: OscillatorNode[] = [];
   private isAlarmPlaying = false;
   private soundEnabled = true;
+  private lastWarningTime = 0;
+  private lastCriticalTime = 0;
 
   private initAudioContext() {
     if (!this.audioCtx && typeof window !== 'undefined') {
@@ -33,10 +35,14 @@ class AlertAudioService {
   }
 
   /**
-   * Krótki dwutonowy sygnał ostrzegawczy (Approaching train warning - < 120s)
+   * Krótki dwutonowy sygnał ostrzegawczy (zabezpieczony przed zapętleniem - max 1 raz na 15s)
    */
   public playWarningSound() {
     if (!this.soundEnabled) return;
+    const nowMs = Date.now();
+    if (nowMs - this.lastWarningTime < 15000) return; // Min 15s odstępu
+    this.lastWarningTime = nowMs;
+
     this.initAudioContext();
     if (!this.audioCtx) return;
 
@@ -68,10 +74,14 @@ class AlertAudioService {
   }
 
   /**
-   * Ciągły, donośny alarm kolizyjny (Critical collision alarm - < 30s)
+   * Ciągły, donośny alarm kolizyjny (zabezpieczony - max 1 raz na 6s)
    */
   public playCriticalAlarm() {
     if (this.isAlarmPlaying || !this.soundEnabled) return;
+    const nowMs = Date.now();
+    if (nowMs - this.lastCriticalTime < 6000) return;
+    this.lastCriticalTime = nowMs;
+
     this.initAudioContext();
     if (!this.audioCtx) return;
 
@@ -81,6 +91,7 @@ class AlertAudioService {
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       navigator.vibrate([400, 150, 400, 150, 600]);
     }
+
 
     try {
       const now = this.audioCtx.currentTime;

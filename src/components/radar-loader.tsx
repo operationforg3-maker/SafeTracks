@@ -25,31 +25,43 @@ export function RadarLoader({
   onFinish,
 }: RadarLoaderProps) {
   const [showSkipButton, setShowSkipButton] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(false);
+  const [isDismissed, setIsDismissed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('safetracks_loaded') === 'true';
+    }
+    return false;
+  });
   const [isExiting, setIsExiting] = useState(false);
-  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const [minTimeElapsed, setMinTimeElapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('safetracks_loaded') === 'true';
+    }
+    return false;
+  });
   const [gpsTimedOut, setGpsTimedOut] = useState(false);
 
-  // Minimalny czas wyświetlenia (1.2s), aby uniknąć brzydkiego mignięcia
+  // Znacznie szybszy start aplikacji (400ms zamiast 1.2s)
   useEffect(() => {
+    if (isDismissed) return;
+
     const timer = setTimeout(() => {
       setMinTimeElapsed(true);
-    }, 1200);
+    }, 400);
 
     const skipTimer = setTimeout(() => {
       setShowSkipButton(true);
-    }, 2800);
+    }, 1200);
 
     const gpsTimeout = setTimeout(() => {
       setGpsTimedOut(true);
-    }, 3800);
+    }, 2000);
 
     return () => {
       clearTimeout(timer);
       clearTimeout(skipTimer);
       clearTimeout(gpsTimeout);
     };
-  }, []);
+  }, [isDismissed]);
 
   // Statusy etapów
   const gpsDone = Boolean(userPosition) || (!geoLoading && !userPosition) || gpsTimedOut;
@@ -57,6 +69,7 @@ export function RadarLoader({
   const trainsDone = !isLoadingTrains || trains.length > 0;
 
   const allReady = minTimeElapsed && gpsDone && stationDone && trainsDone;
+
 
   const onFinishRef = React.useRef(onFinish);
   onFinishRef.current = onFinish;
@@ -69,6 +82,7 @@ export function RadarLoader({
         setIsExiting(true);
         setTimeout(() => {
           setIsDismissed(true);
+          try { sessionStorage.setItem('safetracks_loaded', 'true'); } catch {}
           onFinishRef.current?.();
         }, 500);
       }, 400);
@@ -83,9 +97,11 @@ export function RadarLoader({
     setIsExiting(true);
     setTimeout(() => {
       setIsDismissed(true);
+      try { sessionStorage.setItem('safetracks_loaded', 'true'); } catch {}
       onFinishRef.current?.();
     }, 250);
   };
+
 
   if (isDismissed) return null;
 

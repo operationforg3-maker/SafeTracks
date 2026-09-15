@@ -6,6 +6,9 @@
 
 import { Train } from '@/lib/types';
 import allStationsData from '@/lib/plk-stations-all.json';
+import { generateRailSpline, snapTrainToPath } from './rail-spline';
+import { enrichPathWithPhysicalRails, snapToPhysicalTrack } from './rail-network';
+
 
 export interface PkpApiConfig {
   apiKey: string;
@@ -198,41 +201,102 @@ export interface StationTrainsResponse {
   cached?: boolean;
 }
 
+export const PLK_PROXY_URL =
+  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_PLK_PROXY_URL) ||
+  'https://safetracks-plk-proxy-298894101105.europe-west1.run.app';
+
 /**
- * Główna funkcja pobierania rzeczywistych pociągów z backendu proxy Next.js
+ * Rzutuje pociągi na rzeczywiste, fizyczne torowisko kolejowe (OpenRailwayMap / PLK geodezja)
+ * Eliminując wszelkie proste linie między stacjami i fałszywe zakręty przez jeziora/zabudowę.
+ */
+export function smoothAndSnapTrains(trains: Train[]): Train[] {
+  return trains.map((t) => {
+    if (!t.path || t.path.length < 2) return t;
+
+    // 1. Zastąp rzadkie przystanki rzeczywistym ciągiem fizycznych punktów torowiska
+    const physicalTrack = enrichPathWithPhysicalRails(t.path);
+
+    // 2. Rzutuj pozycję pociągu na najbliższy punkt fizycznego toru
+    const snapped = snapTrainToPath(t.currentPosition, physicalTrack);
+
+    return {
+      ...t,
+      path: physicalTrack,
+      currentPosition: snapped.position,
+      pathIndex: snapped.pathIndex,
+      heading: snapped.heading || t.heading,
+    };
+  });
+}
+
+/**
+ * Główna funkcja pobierania rzeczywistych pociągów z backendu proxy Next.js / Cloud Run.
+ * Każdy pociąg ma natychmiast wygładzaną geometrię szlaku (rail spline) oraz pozycję zakotwiczoną na torze.
  */
 export async function fetchLiveStationTrains(
   stationId?: number,
-  userPosition?: { lat: number; lng: number }
+  userPosition?: { lat: number; lng: number },
+  onPathEnriched?: (trains: Train[]) => void
 ): Promise<StationTrainsResponse | null> {
-  try {
-    const params = new URLSearchParams();
-    if (stationId) {
-      params.append('stationId', String(stationId));
-    }
-    if (userPosition) {
-      params.append('lat', String(userPosition.lat));
-      params.append('lng', String(userPosition.lng));
-    }
-
-    const response = await fetch(`/api/plk/station-trains?${params.toString()}`);
-    if (response.ok) {
-      const data: StationTrainsResponse = await response.json();
-      return data;
-    }
-  } catch (err) {
-    // Serwer proxy niedostępny (np. czysty statyczny hosting Firebase CDN)
+  const params = new URLSearchParams();
+  if (stationId) params.append('stationId', String(stationId));
+  if (userPosition) {
+    params.append('lat', String(userPosition.lat));
+    params.append('lng', String(userPosition.lng));
   }
 
-  // Fallback dla wdrożenia statycznego: inteligentny silnik szlakowy dopasowany do wybranej stacji
+  const endpoints = [
+    `${PLK_PROXY_URL}/api/plk/station-trains?${params.toString()}`,
+    `/api/plk/station-trains?${params.toString()}`,
+  ];
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' },
+      });
+      if (response.ok) {
+        const data: StationTrainsResponse = await response.json();
+        if (data && Array.isArray(data.trains)) {
+          const smoothedTrains = smoothAndSnapTrains(data.trains);
+          const result = {
+            ...data,
+            trains: smoothedTrains,
+          };
+          if (onPathEnriched) {
+            onPathEnriched(smoothedTrains);
+          }
+          return result;
+        }
+      }
+    } catch (err) {
+      // Przejdź do kolejnego źródła
+    }
+  }
+
+  // Awaryjnie: realistyczny ruch oparty na stacjach PLK
   const targetStation = stationId
     ? allStations.find((s) => s.id === stationId) || allStations[0]
     : userPosition
     ? findNearestStation(userPosition.lat, userPosition.lng)
     : allStations[0];
 
-  return generateStationTrainsFallback(targetStation, userPosition);
+  const fallback = generateStationTrainsFallback(targetStation);
+  const smoothedFallback = {
+    ...fallback,
+    trains: smoothAndSnapTrains(fallback.trains),
+  };
+
+  if (onPathEnriched) {
+    onPathEnriched(smoothedFallback.trains);
+  }
+
+  return smoothedFallback;
 }
+
+
+
 
 /**
  * Oblicza współrzędne punktu oddalonego o zadaną odległość (w metrach) pod zadanym kątem (w stopniach)
@@ -262,18 +326,18 @@ export function getPointAtDistanceAndBearing(
 }
 
 /**
- * Generator pociągów szlakowych dla wybranej stacji (gwarantuje realistyczny ciągły ruch i animację przejazdu)
+ * Rezerwowy generator pociągów szlakowych - skład porusza się WYŁĄCZNIE po torach łączących stacje PLK.
+ * Zero zmyślonych punktów obok pieszego!
  */
 export function generateStationTrainsFallback(
-  station: GeocodedStation,
-  userPosition?: { lat: number; lng: number }
+  station: GeocodedStation
 ): StationTrainsResponse {
   const now = Date.now();
   const nearbyStations = findNearestStations(station.lat, station.lng, 6).filter((s) => s.id !== station.id);
   const neighbor1 = nearbyStations[0] || { lat: station.lat + 0.04, lng: station.lng + 0.04, name: 'Sąsiednia Stacja A' };
   const neighbor2 = nearbyStations[1] || { lat: station.lat - 0.04, lng: station.lng - 0.04, name: 'Sąsiednia Stacja B' };
 
-  // Wykrywanie regionu i operatora
+  // Wykrywanie przewoźnika wg regionu
   let defaultCarrier = 'Polregio';
   let regionalType = 'Regio';
   if (station.name.includes('Warszawa') || (station.lat > 52.0 && station.lat < 52.6 && station.lng > 20.4 && station.lng < 21.6)) {
@@ -293,145 +357,67 @@ export function generateStationTrainsFallback(
     regionalType = 'SKM';
   }
 
-  // Oblicz orientację szlaku kolejowego
-  const trackBearing = calculateBearing(neighbor1.lat, neighbor1.lng, station.lat, station.lng);
-  const revBearing = (trackBearing + 180) % 360;
+  // Szlak 1: neighbor1 -> station -> neighbor2 (w 100% po fizycznych szynach)
+  const path1 = enrichPathWithPhysicalRails([
+    { lat: neighbor1.lat, lng: neighbor1.lng },
+    { lat: station.lat, lng: station.lng },
+    { lat: neighbor2.lat, lng: neighbor2.lng },
+  ]);
+  const heading1 = path1.length > 1
+    ? calculateBearing(path1[0].lat, path1[0].lng, path1[1].lat, path1[1].lng)
+    : calculateBearing(neighbor1.lat, neighbor1.lng, station.lat, station.lng);
 
-  // Punkt odniesienia dla torowiska obok pieszego
-  const refLat = userPosition ? userPosition.lat : station.lat;
-  const refLng = userPosition ? userPosition.lng : station.lng;
+  // Szlak 2 (przeciwny kierunek): neighbor2 -> station -> neighbor1
+  const path2 = enrichPathWithPhysicalRails([
+    { lat: neighbor2.lat, lng: neighbor2.lng },
+    { lat: station.lat, lng: station.lng },
+    { lat: neighbor1.lat, lng: neighbor1.lng },
+  ]);
+  const heading2 = path2.length > 1
+    ? calculateBearing(path2[0].lat, path2[0].lng, path2[1].lat, path2[1].lng)
+    : calculateBearing(neighbor2.lat, neighbor2.lng, station.lat, station.lng);
 
-  // Oś toru 25m równolegle obok pieszego
-  const trackNearUser = userPosition
-    ? getPointAtDistanceAndBearing(refLat, refLng, 25, (trackBearing + 90) % 360)
-    : { lat: station.lat, lng: station.lng };
+  // Pozycje składów zakotwiczone wprost w punktach na szynie
+  const idx1 = Math.max(0, Math.min(path1.length - 1, Math.floor(path1.length * 0.65)));
+  const pos1 = path1[idx1] || { lat: station.lat, lng: station.lng };
 
-  // 1. Zbliżający się ekspres EIP 1302 "Pendolino" - zaplanowany do minięcia pieszego w ~28s
-  const eipSpeedKmh = 130;
-  const eipSpeedMs = Math.round(eipSpeedKmh / 3.6); // ~36 m/s
-  const eipInitialDist = 980; // ~27 sekund do minięcia
-  const eipWp0 = getPointAtDistanceAndBearing(trackNearUser.lat, trackNearUser.lng, 2500, revBearing);
-  const eipWp1 = getPointAtDistanceAndBearing(trackNearUser.lat, trackNearUser.lng, eipInitialDist, revBearing);
-  const eipWp2 = trackNearUser; // Minięcie pieszego co do metra
-  const eipWp3 = getPointAtDistanceAndBearing(trackNearUser.lat, trackNearUser.lng, 1800, trackBearing);
-  const eipWp4 = getPointAtDistanceAndBearing(trackNearUser.lat, trackNearUser.lng, 4000, trackBearing);
-
-  // 2. Pociąg IC 1100 jadący w tym samym kierunku nieco dalej (2.8 km z tyłu)
-  const icSpeedKmh = 95;
-  const icSpeedMs = Math.round(icSpeedKmh / 3.6);
-  const icWp0 = getPointAtDistanceAndBearing(trackNearUser.lat, trackNearUser.lng, 4500, revBearing);
-  const icWp1 = getPointAtDistanceAndBearing(trackNearUser.lat, trackNearUser.lng, 2800, revBearing);
-  const icWp2 = trackNearUser;
-  const icWp3 = getPointAtDistanceAndBearing(trackNearUser.lat, trackNearUser.lng, 2500, trackBearing);
-
-  // 3. Pociąg regionalny z naprzeciwka (po drugim torze, 40m na bok)
-  const trackOpposite = getPointAtDistanceAndBearing(trackNearUser.lat, trackNearUser.lng, 40, (trackBearing + 270) % 360);
-  const regSpeedKmh = 70;
-  const regSpeedMs = Math.round(regSpeedKmh / 3.6);
-  const regWp0 = getPointAtDistanceAndBearing(trackOpposite.lat, trackOpposite.lng, 3200, trackBearing);
-  const regWp1 = getPointAtDistanceAndBearing(trackOpposite.lat, trackOpposite.lng, 1800, trackBearing);
-  const regWp2 = trackOpposite;
-  const regWp3 = getPointAtDistanceAndBearing(trackOpposite.lat, trackOpposite.lng, 2500, revBearing);
-
-  // 4. Skład towarowy Cargo z naprzeciwka
-  const cargoSpeedKmh = 55;
-  const cargoSpeedMs = Math.round(cargoSpeedKmh / 3.6);
-  const cargoWp0 = getPointAtDistanceAndBearing(trackOpposite.lat, trackOpposite.lng, 5000, trackBearing);
-  const cargoWp1 = getPointAtDistanceAndBearing(trackOpposite.lat, trackOpposite.lng, 3500, trackBearing);
-  const cargoWp2 = trackOpposite;
-  const cargoWp3 = getPointAtDistanceAndBearing(trackOpposite.lat, trackOpposite.lng, 3000, revBearing);
-
-  // 5. Drugi regionalny
-  const reg2Wp0 = getPointAtDistanceAndBearing(trackNearUser.lat, trackNearUser.lng, 6000, revBearing);
-  const reg2Wp1 = getPointAtDistanceAndBearing(trackNearUser.lat, trackNearUser.lng, 4200, revBearing);
-  const reg2Wp2 = trackNearUser;
-  const reg2Wp3 = getPointAtDistanceAndBearing(trackNearUser.lat, trackNearUser.lng, 3500, trackBearing);
+  const idx2 = Math.max(0, Math.min(path2.length - 1, Math.floor(path2.length * 0.3)));
+  const pos2 = path2[idx2] || { lat: station.lat, lng: station.lng };
 
   const trains: Train[] = [
     {
-      id: 'EIP 1302',
-      name: 'Pendolino',
-      route: `Gdynia Główna ➔ ${station.name} ➔ Kraków Główny`,
-      type: 'EIP',
-      operator: 'PKP Intercity',
-      rollingStock: 'ED250 (Alstom Pendolino)',
-      currentPosition: eipWp1,
-      speed: eipSpeedMs,
-      heading: trackBearing,
-      lastUpdate: now,
-      path: [eipWp0, eipWp1, eipWp2, eipWp3, eipWp4],
-      pathIndex: 1,
-      origin: 'Gdynia Główna',
-      destination: 'Kraków Główny',
-      delayMinutes: 0,
-    },
-    {
-      id: 'IC 1100',
-      name: 'NAREW',
-      route: `${neighbor1.name} ➔ ${station.name} ➔ Warszawa Centralna`,
-      type: 'IC',
-      operator: 'PKP Intercity',
-      rollingStock: 'ED160 (Stadler FLIRT3)',
-      currentPosition: icWp1,
-      speed: icSpeedMs,
-      heading: trackBearing,
-      lastUpdate: now,
-      path: [icWp0, icWp1, icWp2, icWp3],
-      pathIndex: 1,
-      origin: neighbor1.name,
-      destination: 'Warszawa Centralna',
-      delayMinutes: 2,
-    },
-    {
       id: `${regionalType} 19432`,
       name: undefined,
-      route: `${station.name} ➔ ${neighbor2.name}`,
+      route: `${neighbor1.name} ➔ ${station.name} ➔ ${neighbor2.name}`,
       type: regionalType,
       operator: defaultCarrier,
       rollingStock: 'EN57-AKM / Impuls',
-      currentPosition: regWp1,
-      speed: regSpeedMs,
-      heading: revBearing,
+      currentPosition: pos1,
+      speed: 20, // 72 km/h
+      heading: heading1,
       lastUpdate: now,
-      path: [regWp0, regWp1, regWp2, regWp3],
-      pathIndex: 1,
-      origin: station.name,
+      path: path1,
+      pathIndex: 0,
+      origin: neighbor1.name,
       destination: neighbor2.name,
       delayMinutes: 0,
     },
     {
-      id: 'Cargo 66401',
-      name: 'Skład Towarowy',
-      route: `Tarnowskie Góry ➔ ${station.name} ➔ Port Gdańsk`,
-      type: 'Cargo',
-      operator: 'PKP Cargo',
-      rollingStock: 'Newag Dragon 2 (ET26)',
-      currentPosition: cargoWp1,
-      speed: cargoSpeedMs,
-      heading: revBearing,
+      id: 'IC 1104',
+      name: 'BOCIAN',
+      route: `${neighbor2.name} ➔ ${station.name} ➔ ${neighbor1.name}`,
+      type: 'IC',
+      operator: 'PKP Intercity',
+      rollingStock: 'ED160 (Stadler FLIRT3)',
+      currentPosition: pos2,
+      speed: 25, // 90 km/h
+      heading: heading2,
       lastUpdate: now,
-      path: [cargoWp0, cargoWp1, cargoWp2, cargoWp3],
-      pathIndex: 1,
-      origin: 'Śląsk',
-      destination: 'Port Gdańsk',
-      delayMinutes: 14,
-    },
-    {
-      id: `${regionalType} 12340`,
-      name: undefined,
-      route: `${neighbor1.name} ➔ ${station.name}`,
-      type: regionalType,
-      operator: defaultCarrier,
-      rollingStock: 'Pesa Elf II / Flirt',
-      currentPosition: reg2Wp1,
-      speed: regSpeedMs,
-      heading: trackBearing,
-      lastUpdate: now,
-      path: [reg2Wp0, reg2Wp1, reg2Wp2, reg2Wp3],
-      pathIndex: 1,
-      origin: neighbor1.name,
-      destination: station.name,
-      delayMinutes: 1,
+      path: path2,
+      pathIndex: 0,
+      origin: neighbor2.name,
+      destination: neighbor1.name,
+      delayMinutes: 3,
     },
   ];
 

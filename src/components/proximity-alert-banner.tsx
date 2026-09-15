@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { ShieldAlert, AlertTriangle, Volume2, VolumeX, PhoneCall, CheckCircle } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ShieldAlert, AlertTriangle, Volume2, VolumeX, PhoneCall, CheckCircle2 } from 'lucide-react';
 import { Button } from './ui/button';
-import { ProximityAlertState, Train } from '@/lib/types';
+import { Train } from '@/lib/types';
 import { evaluateProximitySafety } from '@/services/proximity-engine';
 import { useGeolocation } from '@/hooks/use-geolocation';
 import { alertAudio } from '@/services/alert-audio';
-
 import { GeocodedStation } from '@/services/pkp-api';
+import { useGeofenceRadius } from '@/services/geofence-settings';
 
 interface ProximityAlertBannerProps {
   trains: Train[];
@@ -18,19 +18,20 @@ interface ProximityAlertBannerProps {
 
 export function ProximityAlertBanner({ trains, onOpenSos, activeStation }: ProximityAlertBannerProps) {
   const { position: userPosition } = useGeolocation();
-  const [alertState, setAlertState] = useState<ProximityAlertState>({
-    level: 'safe',
-    isInsideHazardZone: false,
-    message: 'Radar aktywny.',
-  });
+  const [geofenceRadius] = useGeofenceRadius();
   const [isMuted, setIsMuted] = useState(false);
   const [dismissedUntil, setDismissedUntil] = useState<number>(0);
 
-  useEffect(() => {
+  const alertState = useMemo(() => {
     const isTemporarilyDismissed = Date.now() < dismissedUntil;
-    const evaluated = evaluateProximitySafety(userPosition, trains, isMuted || isTemporarilyDismissed, activeStation);
-    setAlertState(evaluated);
-  }, [userPosition, trains, isMuted, dismissedUntil, activeStation]);
+    return evaluateProximitySafety(
+      userPosition,
+      trains,
+      isMuted || isTemporarilyDismissed,
+      activeStation,
+      geofenceRadius
+    );
+  }, [userPosition, trains, isMuted, dismissedUntil, activeStation, geofenceRadius]);
 
   const toggleSound = () => {
     const nextMuted = !isMuted;
@@ -40,66 +41,63 @@ export function ProximityAlertBanner({ trains, onOpenSos, activeStation }: Proxi
 
   const handleDismiss = () => {
     alertAudio.stopAlarm();
-    // Wyciszenie na 60 sekund jeśli użytkownik świadomie potwierdził bezpieczeństwo
     setDismissedUntil(Date.now() + 60000);
   };
-
-  if (alertState.level === 'safe' && !alertState.isInsideHazardZone) {
-    return null;
-  }
 
   const isCritical = alertState.level === 'critical';
   const isWarning = alertState.level === 'warning';
 
+  // KLUCZOWE: nie renderuj nic w stanie safe — zero szumu wizualnego
+  if (!isCritical && !isWarning) return null;
+
   return (
     <div
-      className={`w-full transition-all duration-300 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-white shadow-lg ${
+      className={`w-full transition-colors duration-300 px-3 sm:px-4 py-2 flex items-center justify-between gap-2 text-xs border-b ${
         isCritical
-          ? 'bg-destructive animate-pulse border-b-2 border-white'
-          : isWarning
-          ? 'bg-amber-600 border-b border-amber-400'
-          : 'bg-slate-800 border-b border-slate-700'
+          ? 'bg-destructive text-destructive-foreground animate-pulse border-white/40'
+          : 'bg-amber-500 text-amber-950 font-medium border-amber-600/30'
       }`}
     >
-      <div className="flex items-center gap-3 min-w-[280px] flex-1">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
         {isCritical ? (
-          <ShieldAlert className="h-6 w-6 text-white animate-bounce shrink-0" />
+          <ShieldAlert className="h-4 w-4 text-white animate-bounce shrink-0" />
         ) : (
-          <AlertTriangle className="h-5 w-5 text-amber-200 shrink-0" />
+          <AlertTriangle className="h-4 w-4 text-amber-900 shrink-0" />
         )}
-        <div>
-          <div className="font-bold text-sm leading-tight flex items-center gap-2">
-            <span>{isCritical ? 'ZAGROŻENIE ŻYCIA! POCIĄG NA TORACH' : 'OSTRZEŻENIE ZBLIŻENIOWE'}</span>
-            {alertState.estimatedTimeToArrivalSeconds && (
-              <span className="bg-black/30 text-xs px-2 py-0.5 rounded-full font-mono font-black">
-                ETA: {alertState.estimatedTimeToArrivalSeconds}s
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-white/90 leading-snug mt-0.5">{alertState.message}</p>
+
+        <div className="flex items-center gap-2 truncate text-xs">
+          <span className="font-bold truncate">
+            {isCritical ? 'ZAGROŻENIE!' : 'UWAGA'}
+          </span>
+          <span className="truncate opacity-90">{alertState.message}</span>
+          {alertState.estimatedTimeToArrivalSeconds && (
+            <span className="bg-black/20 font-mono font-bold px-1.5 py-0.5 rounded text-[10px] shrink-0">
+              ETA {alertState.estimatedTimeToArrivalSeconds}s
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 shrink-0">
         <Button
           size="sm"
-          variant="outline"
+          variant="ghost"
           onClick={toggleSound}
-          className="h-8 px-2.5 text-xs bg-black/20 hover:bg-black/40 border-white/30 text-white"
-          title={isMuted ? 'Włącz dźwięk alarmu' : 'Wycisz dźwięk alarmu'}
+          className="h-6 w-6 p-0 hover:bg-black/10"
+          title={isMuted ? 'Włącz dźwięki' : 'Wycisz'}
         >
-          {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          {isMuted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
         </Button>
 
         {isCritical && (
           <Button
             size="sm"
             variant="default"
-            className="h-8 px-3 text-xs bg-white text-destructive font-bold hover:bg-slate-100 shadow-md gap-1"
+            className="h-6 px-2 text-[10px] font-bold bg-white text-destructive hover:bg-slate-100 gap-1 shadow"
             onClick={onOpenSos}
           >
-            <PhoneCall className="h-3.5 w-3.5" />
-            <span>SOS 112</span>
+            <PhoneCall className="h-3 w-3" />
+            <span>112</span>
           </Button>
         )}
 
@@ -107,10 +105,11 @@ export function ProximityAlertBanner({ trains, onOpenSos, activeStation }: Proxi
           size="sm"
           variant="ghost"
           onClick={handleDismiss}
-          className="h-8 px-2.5 text-xs text-white hover:bg-white/20"
+          className="h-6 px-1.5 text-[10px] hover:bg-black/10"
+          title="Wycisz na 1 minutę"
         >
-          <CheckCircle className="h-4 w-4 mr-1" />
-          <span>Wiem</span>
+          <CheckCircle2 className="h-3 w-3 mr-0.5" />
+          <span>OK</span>
         </Button>
       </div>
     </div>

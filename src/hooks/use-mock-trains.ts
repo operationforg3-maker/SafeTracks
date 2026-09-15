@@ -63,21 +63,25 @@ export const useMockTrains = (userPosition?: Position): UseLiveTrainsReturn => {
           if (prevTrains.length === 0) {
             return response.trains;
           }
-          // Zachowaj ciągły ruch jadących pociągów, aby nie cofać ich co 15 sekund
+          // Zachowaj ciągły ruch jadących pociągów, aby nie cofać ich co 20 sekund
           const existingMap = new Map(prevTrains.map((t) => [t.id, t]));
           return response.trains.map((newTrain) => {
             const existing = existingMap.get(newTrain.id);
-            if (existing && existing.path && existing.path.length > 1) {
-              return {
-                ...newTrain,
-                currentPosition: existing.currentPosition,
-                pathIndex: existing.pathIndex,
-                heading: existing.heading,
-                path: existing.path,
-                speed: existing.speed,
-              };
+            if (!existing) return newTrain;
+
+            // Jeśli serwer zarejestrował minięcie kolejnej stacji (postęp na trasie), przyjmij nową pozycję
+            if ((newTrain.pathIndex ?? 0) > (existing.pathIndex ?? 0) + 1) {
+              return newTrain;
             }
-            return newTrain;
+
+            // W obrębie tego samego segmentu zachowaj płynną pozycję dead-reckoning
+            return {
+              ...newTrain,
+              currentPosition: existing.currentPosition,
+              pathIndex: existing.pathIndex,
+              heading: existing.heading,
+              path: newTrain.path && newTrain.path.length > 2 ? newTrain.path : existing.path,
+            };
           });
         });
         setLastSync(new Date());
@@ -88,6 +92,8 @@ export const useMockTrains = (userPosition?: Position): UseLiveTrainsReturn => {
       setIsLoading(false);
     }
   }, [userPosition]);
+
+
 
   // Pobranie przy zmianie aktywnej stacji
   useEffect(() => {

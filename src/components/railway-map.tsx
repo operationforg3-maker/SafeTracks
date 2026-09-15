@@ -4,12 +4,14 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import type { Train, RailwayCrossing, HazardReport } from '@/lib/types';
 import { useGeolocation } from '@/hooks/use-geolocation';
 import { railwayCrossings, initialHazardReports } from '@/lib/data';
-import { Locate, Layers, Settings, PackageCheck, Target, TrainFront } from 'lucide-react';
+import { Locate, Settings, Target } from 'lucide-react';
 import { findNearestStations, calculateDistanceMeters, isTrainApproaching } from '@/services/pkp-api';
 import { alertAudio } from '@/services/alert-audio';
 import { Button } from './ui/button';
-import { MapSettingsDialog, MapStyleOption } from './map-settings-dialog';
+import { MapSettingsDialog, MapStyleOption, DEFAULT_GEOFENCE_RADIUS } from './map-settings-dialog';
+import { useGeofenceRadius } from '@/services/geofence-settings';
 import { useTheme } from '@/components/theme-provider';
+
 import 'leaflet/dist/leaflet.css';
 
 interface RailwayMapProps {
@@ -17,6 +19,7 @@ interface RailwayMapProps {
   enthusiastMode: boolean;
   onTrainSelect?: (train: Train) => void;
   onOpenSpotDialog?: () => void;
+  selectedTrain?: Train | null;
 }
 
 const TILE_PROVIDERS: Record<MapStyleOption, { url: string; attribution: string; maxZoom: number; subdomains?: string | string[] }> = {
@@ -42,7 +45,7 @@ const TILE_PROVIDERS: Record<MapStyleOption, { url: string; attribution: string;
   },
 };
 
-export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDialog }: RailwayMapProps) {
+export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDialog, selectedTrain }: RailwayMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const trainMarkersRef = useRef<Map<string, any>>(new Map());
@@ -55,6 +58,8 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
   const approachVectorLineRef = useRef<any>(null);
   const approachVectorMarkerRef = useRef<any>(null);
   const hasPlayedPassSoundRef = useRef<Set<string>>(new Set());
+  const selectedTrainRouteRef = useRef<any>(null);
+  const selectedTrainMarkerRef = useRef<any>(null);
 
   const { effectiveTheme } = useTheme();
   const { position: userPosition } = useGeolocation();
@@ -64,8 +69,10 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
   const [showRailwayOverlay, setShowRailwayOverlay] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+  const [geofenceRadius, setGeofenceRadius] = useGeofenceRadius();
 
-  // Znajdź najbliższy pociąg (ze szczególnym uwzględnieniem zbliżających się)
+  // Znajdź najbliższy pociąg w strefie geofencingu lub zbliżający się
+
   const nearestApproachingTrain = useMemo(() => {
     if (!userPosition || trains.length === 0) return null;
     const list = trains.map((t) => {
@@ -85,15 +92,31 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
       return { train: t, dist, approaching };
     });
 
-    const approachingOnly = list.filter((item) => item.approaching);
-    if (approachingOnly.length > 0) {
-      approachingOnly.sort((a, b) => a.dist - b.dist);
-      return approachingOnly[0];
+    // Priorytet 1: pociąg WEWNĄTRZ strefy geofencingu (<=geofenceRadius) zbliżający się
+    const inZoneApproaching = list.filter((item) => item.approaching && item.dist <= geofenceRadius);
+    if (inZoneApproaching.length > 0) {
+      inZoneApproaching.sort((a, b) => a.dist - b.dist);
+      return inZoneApproaching[0];
     }
-    // Jeśli żaden nie jedzie prosto na nas, weź najbliższy ogółem
+
+    // Priorytet 2: pociąg w strefie (niekoniecznie zbliżający się wektorem - może mijać)
+    const inZone = list.filter((item) => item.dist <= geofenceRadius);
+    if (inZone.length > 0) {
+      inZone.sort((a, b) => a.dist - b.dist);
+      return inZone[0];
+    }
+
+    // Priorytet 3 (informacyjny, bez alarmu): najbliższy zbliżający się poza strefą
+    const approachingOutside = list.filter((item) => item.approaching);
+    if (approachingOutside.length > 0) {
+      approachingOutside.sort((a, b) => a.dist - b.dist);
+      return approachingOutside[0];
+    }
+
+    // Priorytet 4: najbliższy ogólnie
     list.sort((a, b) => a.dist - b.dist);
     return list[0] || null;
-  }, [trains, userPosition]);
+  }, [trains, userPosition, geofenceRadius]);
 
   // Synchronizacja stylu mapy z motywem jasnym/ciemnym
   useEffect(() => {
@@ -127,19 +150,30 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
 
       const map = L.map(mapContainerRef.current, {
         center: initialCenter,
-        zoom: 13,
+        zoom: 15,
         zoomControl: false,
       });
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-      // Klasa zapobiegająca pływaniu markerów podczas zoomu
+      const updateZoomClasses = () => {
+        if (!mapContainerRef.current) return;
+        if (map.getZoom() < 12) {
+          mapContainerRef.current.classList.add('zoom-low');
+        } else {
+          mapContainerRef.current.classList.remove('zoom-low');
+        }
+      };
+
       map.on('zoomstart', () => {
         mapContainerRef.current?.classList.add('map-is-zooming');
       });
       map.on('zoomend', () => {
         mapContainerRef.current?.classList.remove('map-is-zooming');
+        updateZoomClasses();
       });
+      updateZoomClasses();
+
 
       // 1. Podkład bazowy: Czysty podkład Esri
       const currentProvider = TILE_PROVIDERS[mapStyle];
@@ -272,7 +306,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         ]);
         map.fitBounds(bounds.pad(0.35), { maxZoom: 15, minZoom: 11, animate: true });
       } else {
-        map.setView([userPosition.lat, userPosition.lng], 13, { animate: true });
+        map.setView([userPosition.lat, userPosition.lng], 15, { animate: true });
       }
     });
   }, [userPosition, nearestApproachingTrain, trains]);
@@ -284,12 +318,13 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         frameOnApproachingTrain();
         hasInitialFramedRef.current = true;
       } else {
-        mapInstanceRef.current?.setView([userPosition.lat, userPosition.lng], 13, { animate: true });
+        mapInstanceRef.current?.setView([userPosition.lat, userPosition.lng], 15, { animate: true });
       }
     }
   }, [mapReady, userPosition, trains.length, frameOnApproachingTrain]);
 
-  // Aktualizacja pozycji użytkownika i strefy geofencingu (200m)
+
+  // Aktualizacja pozycji użytkownika i strefy geofencingu (regulowany promień)
   useEffect(() => {
     if (!mapInstanceRef.current || !userPosition) return;
     const map = mapInstanceRef.current;
@@ -319,7 +354,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
 
       if (!userRadiusCircleRef.current) {
         userRadiusCircleRef.current = L.circle(userLatLng, {
-          radius: 200,
+          radius: geofenceRadius,
           color: '#F59E0B',
           fillColor: '#F59E0B',
           fillOpacity: 0.12,
@@ -328,6 +363,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         }).addTo(map);
       } else {
         userRadiusCircleRef.current.setLatLng(userLatLng);
+        userRadiusCircleRef.current.setRadius(geofenceRadius);
       }
 
       // Wyświetlenie najbliższego posterunku / węzła PKP PLK dla pozycji użytkownika
@@ -339,17 +375,17 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         const distKm = (st.distanceMeters / 1000).toFixed(1);
         const beaconIcon = L.divIcon({
           html: `
-            <div style="background: rgba(16, 185, 129, 0.95); color: white; border: 1.5px solid white; border-radius: 6px; padding: 2px 6px; font-weight: 700; font-size: 10px; box-shadow: 0 0 10px rgba(16, 185, 129, 0.7); display: flex; align-items: center; gap: 4px; white-space: nowrap;">
-              <span>📡 ${st.name}</span>
-              <span style="background: rgba(0,0,0,0.25); font-size: 9px; padding: 1px 3px; border-radius: 3px; font-family: monospace;">${distKm} km</span>
+            <div style="background: rgba(16, 185, 129, 0.9); color: white; border: 1.5px solid white; border-radius: 9999px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-size: 11px; cursor: pointer;">
+              🚉
             </div>
           `,
           className: 'station-beacon-marker',
-          iconSize: [130, 24],
-          iconAnchor: [65, 12],
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
         });
 
         const stMarker = L.marker([st.lat, st.lng], { icon: beaconIcon, zIndexOffset: 300 }).addTo(map);
+        stMarker.bindTooltip(`${st.name} (${distKm} km)`, { direction: 'top', offset: [0, -10] });
         stMarker.bindPopup(`
           <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; color: #1E293B;">
             <div style="font-weight: bold; color: #047857;">📡 Węzeł PKP PLK: ${st.name}</div>
@@ -360,11 +396,12 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         nearestStationMarkersRef.current.push(stMarker);
       });
     });
-  }, [userPosition, mapReady]);
+  }, [userPosition, mapReady, geofenceRadius]);
 
-  // Wektor zbliżania: Dynamiczna przerywana linia z animacją marszu mrówek + kapsułka ETA
+
+  // Podświetlenie szlaku kolejowego zbliżającego się / wybranego pociągu (STRICTLY PO TORACH)
   useEffect(() => {
-    if (!mapInstanceRef.current || !userPosition) return;
+    if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
 
     import('leaflet').then((leafletModule) => {
@@ -374,91 +411,128 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         map.removeLayer(approachVectorLineRef.current);
         approachVectorLineRef.current = null;
       }
-      if (approachVectorMarkerRef.current) {
-        map.removeLayer(approachVectorMarkerRef.current);
-        approachVectorMarkerRef.current = null;
-      }
 
       if (nearestApproachingTrain) {
         const train = nearestApproachingTrain.train;
         const distMeters = nearestApproachingTrain.dist;
-        const speedMs = train.speed > 0 ? train.speed : 20;
-        const etaSeconds = Math.max(1, Math.round(distMeters / speedMs));
-        const etaFormatted =
-          etaSeconds < 60
-            ? `${etaSeconds}s`
-            : `${Math.floor(etaSeconds / 60)}m ${etaSeconds % 60}s`;
-        const distFormatted =
-          distMeters >= 1000
-            ? `${(distMeters / 1000).toFixed(1)} km`
-            : `${Math.round(distMeters)} m`;
-
         const isApproaching = nearestApproachingTrain.approaching;
-        const strokeColor = distMeters <= 120 ? '#EF4444' : isApproaching ? '#F97316' : '#10B981';
 
-        const polyline = L.polyline(
-          [
-            [userPosition.lat, userPosition.lng],
-            [train.currentPosition.lat, train.currentPosition.lng],
-          ],
-          {
-            className: 'approach-vector-line',
+        // Rysuj korytarz szlaku kolejowego pociągu (punkty stacji na trasie)
+        if (train.path && train.path.length >= 2) {
+          const latLngs = train.path.map((p) => [p.lat, p.lng]);
+          const strokeColor = distMeters <= 200 ? '#EF4444' : isApproaching ? '#F97316' : '#0284C7';
+
+          const polyline = L.polyline(latLngs, {
+            className: 'rail-corridor-line',
             color: strokeColor,
-            weight: 3,
-            opacity: 0.9,
-            dashArray: '8, 10',
+            weight: 4,
+            opacity: 0.85,
+            dashArray: '6, 8',
             lineCap: 'round',
-          }
-        ).addTo(map);
+          }).addTo(map);
 
-        approachVectorLineRef.current = polyline;
-
-        const midLat = (userPosition.lat + train.currentPosition.lat) / 2;
-        const midLng = (userPosition.lng + train.currentPosition.lng) / 2;
-
-        const badgeText = distMeters <= 120
-          ? '⚡ MIJA CIĘ TERAZ!'
-          : isApproaching
-          ? `ETA ~${etaFormatted}`
-          : 'ODDALA SIĘ';
-
-        const etaBadgeIcon = L.divIcon({
-          html: `
-            <div style="background: rgba(15, 23, 42, 0.94); color: #F8FAFC; border: 1.5px solid ${strokeColor}; border-radius: 9999px; padding: 2px 8px; font-size: 10px; font-weight: 700; white-space: nowrap; box-shadow: 0 0 12px rgba(0,0,0,0.7); display: flex; align-items: center; gap: 4px; pointer-events: none; backdrop-filter: blur(4px);">
-              <span style="color: ${strokeColor}; font-size: 11px;">${distMeters <= 120 ? '⚡' : isApproaching ? '🎯' : '✅'}</span>
-              <span>${badgeText}</span>
-              <span style="opacity: 0.4;">|</span>
-              <span style="font-family: monospace; opacity: 0.9;">${distFormatted}</span>
-            </div>
-          `,
-          className: 'approach-vector-badge',
-          iconSize: [130, 24],
-          iconAnchor: [65, 12],
-        });
-
-        const midMarker = L.marker([midLat, midLng], {
-          icon: etaBadgeIcon,
-          zIndexOffset: 800,
-          interactive: false,
-        }).addTo(map);
-
-        approachVectorMarkerRef.current = midMarker;
+          approachVectorLineRef.current = polyline;
+        }
       }
     });
 
     return () => {
-      if (mapInstanceRef.current) {
-        if (approachVectorLineRef.current) {
-          mapInstanceRef.current.removeLayer(approachVectorLineRef.current);
-          approachVectorLineRef.current = null;
-        }
-        if (approachVectorMarkerRef.current) {
-          mapInstanceRef.current.removeLayer(approachVectorMarkerRef.current);
-          approachVectorMarkerRef.current = null;
-        }
+      if (mapInstanceRef.current && approachVectorLineRef.current) {
+        mapInstanceRef.current.removeLayer(approachVectorLineRef.current);
+        approachVectorLineRef.current = null;
       }
     };
-  }, [nearestApproachingTrain, userPosition, mapReady]);
+  }, [nearestApproachingTrain, mapReady]);
+
+  // Wyświetlenie trasy i pozycji wybranego pociągu (klik na marker)
+  useEffect(() => {
+    if (!mapInstanceRef.current || !mapReady) return;
+    const map = mapInstanceRef.current;
+
+    import('leaflet').then((leafletModule) => {
+      const L = leafletModule.default || leafletModule;
+
+      // Wyczyść poprzednią trasę i marker
+      if (selectedTrainRouteRef.current) {
+        map.removeLayer(selectedTrainRouteRef.current);
+        selectedTrainRouteRef.current = null;
+      }
+      if (selectedTrainMarkerRef.current) {
+        map.removeLayer(selectedTrainMarkerRef.current);
+        selectedTrainMarkerRef.current = null;
+      }
+
+      if (!selectedTrain) return;
+
+      // Kolor linii wg przewoźnika
+      let routeColor = '#0EA5E9';
+      if (selectedTrain.type === 'EIP') routeColor = '#A855F7';
+      else if (selectedTrain.type === 'IC' || selectedTrain.type === 'TLK') routeColor = '#3B82F6';
+      else if (['KM', 'KW', 'KD', 'SKM'].includes(selectedTrain.type || '')) routeColor = '#22C55E';
+      else if (selectedTrain.type === 'Polregio' || selectedTrain.type === 'Regio') routeColor = '#EF4444';
+      else if (selectedTrain.type === 'Cargo') routeColor = '#F59E0B';
+
+      // Rysuj pełną trasę pociągu
+      if (selectedTrain.path && selectedTrain.path.length >= 2) {
+        const latLngs = selectedTrain.path.map((p) => [p.lat, p.lng]);
+        const routeLine = L.polyline(latLngs, {
+          color: routeColor,
+          weight: 5,
+          opacity: 0.9,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
+
+        // Półprzezroczysta obwódka dla czytelności
+        const routeOutline = L.polyline(latLngs, {
+          color: '#ffffff',
+          weight: 8,
+          opacity: 0.35,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(map);
+        routeOutline.bringToBack();
+
+        selectedTrainRouteRef.current = L.layerGroup([routeOutline, routeLine]).addTo(map);
+      }
+
+      // Specjalny marker pozycji wybranego pociągu
+      const trainPos: [number, number] = [selectedTrain.currentPosition.lat, selectedTrain.currentPosition.lng];
+      const kmh = Math.round((selectedTrain.speed || 0) * 3.6);
+      const selectedIcon = L.divIcon({
+        html: `
+          <div style="position: relative; width: 40px; height: 40px;">
+            <div style="position: absolute; inset: -8px; border-radius: 9999px; border: 3px solid ${routeColor}; animation: ping 1s cubic-bezier(0,0,0.2,1) infinite; opacity: 0.8;"></div>
+            <div style="width: 40px; height: 40px; border-radius: 9999px; background: #0F172A; border: 3px solid #FCD34D; box-shadow: 0 0 20px ${routeColor}, 0 0 40px rgba(252,211,77,0.5); display: flex; align-items: center; justify-content: center; position: relative; z-index: 5;">
+              <svg viewBox="0 0 24 24" width="20" height="20" style="transform: rotate(${selectedTrain.heading || 0}deg);" fill="${routeColor}">
+                <polygon points="12,2 21,20 12,15 3,20"/>
+              </svg>
+            </div>
+            <div style="position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: #FCD34D; color: #0F172A; font-weight: 900; font-size: 11px; padding: 3px 8px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.5);">
+              🎯 ${selectedTrain.id} · ${kmh} km/h
+            </div>
+          </div>
+        `,
+        className: 'selected-train-marker',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+      });
+
+      selectedTrainMarkerRef.current = L.marker(trainPos, {
+        icon: selectedIcon,
+        zIndexOffset: 2000,
+      }).addTo(map);
+
+      // Dopasuj widok: user + pociąg + cała trasa
+      const boundsPoints: [number, number][] = [trainPos];
+      if (userPosition) boundsPoints.push([userPosition.lat, userPosition.lng]);
+      if (selectedTrain.path && selectedTrain.path.length >= 2) {
+        selectedTrain.path.forEach((p) => boundsPoints.push([p.lat, p.lng]));
+      }
+      const bounds = L.latLngBounds(boundsPoints);
+      map.fitBounds(bounds.pad(0.15), { maxZoom: 14, minZoom: 9, animate: true });
+    });
+  }, [selectedTrain, mapReady, userPosition]);
 
   // Precyzyjne znaczniki pociągów: Snop świateł reflektorów czołowych + animacja ciągłego sunięcia po szynie + fale mijania
   useEffect(() => {
@@ -515,15 +589,16 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
             train.heading || 0
           );
 
-        const isPassingNow = distToUser <= 120;
+        const isPassingNow = distToUser <= geofenceRadius * 0.6;
 
         // Dźwięk syreny pociągu przy mijaniu
         if (isPassingNow && !hasPlayedPassSoundRef.current.has(train.id)) {
           hasPlayedPassSoundRef.current.add(train.id);
           alertAudio.playTrainPassingSound();
-        } else if (!isPassingNow && hasPlayedPassSoundRef.current.has(train.id) && distToUser > 300) {
+        } else if (!isPassingNow && hasPlayedPassSoundRef.current.has(train.id) && distToUser > geofenceRadius * 1.5) {
           hasPlayedPassSoundRef.current.delete(train.id);
         }
+
 
         // Precyzyjny znacznik z reflektorami, animacją mijania i mikro-badge'em
         const iconHtml = `
@@ -552,7 +627,8 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
             </div>
 
             <!-- Zawieszony micro-badge 36px powyżej pucka -->
-            <div style="position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none; z-index: 10; display: flex; flex-direction: column; align-items: center;">
+            <div class="train-badge-pill" style="position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none; z-index: 10; display: flex; flex-direction: column; align-items: center;">
+
               ${
                 isPassingNow
                   ? `<div style="background: #DC2626; color: white; border: 1.5px solid white; border-radius: 6px; padding: 2px 7px; font-weight: 900; font-size: 10px; box-shadow: 0 0 16px rgba(220,38,38,0.9); animation: pulse 0.6s infinite; letter-spacing: 0.3px;">
@@ -583,9 +659,24 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         if (trainMarkersRef.current.has(train.id)) {
           const marker = trainMarkersRef.current.get(train.id);
           marker.setLatLng(trainPos);
-          marker.setIcon(trainIcon);
+
+          const lastState = marker._renderState;
+          const headingDiff = Math.abs((lastState?.heading ?? 0) - headingRotation);
+          const speedDiff = Math.abs((lastState?.kmh ?? 0) - kmh);
+          const needsIconUpdate =
+            !lastState ||
+            lastState.isPassingNow !== isPassingNow ||
+            headingDiff > 15 ||
+            speedDiff > 6 ||
+            lastState.enthusiastMode !== enthusiastMode;
+
+          if (needsIconUpdate) {
+            marker.setIcon(trainIcon);
+            marker._renderState = { isPassingNow, heading: headingRotation, kmh, enthusiastMode };
+          }
         } else {
           const marker = L.marker(trainPos, { icon: trainIcon, zIndexOffset: 500 }).addTo(map);
+          marker._renderState = { isPassingNow, heading: headingRotation, kmh, enthusiastMode };
 
           marker.on('click', () => {
             if (onTrainSelect) {
@@ -597,15 +688,17 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         }
       });
     });
-  }, [trains, enthusiastMode, mapReady, onTrainSelect, userPosition]);
+  }, [trains, enthusiastMode, mapReady, onTrainSelect, userPosition, geofenceRadius]);
+
 
   const handleCenterOnUser = () => {
     if (mapInstanceRef.current && userPosition) {
-      mapInstanceRef.current.setView([userPosition.lat, userPosition.lng], 14, {
+      mapInstanceRef.current.setView([userPosition.lat, userPosition.lng], 16, {
         animate: true,
       });
     }
   };
+
 
   const handleToggleRailwayOverlay = () => {
     if (!mapInstanceRef.current || !railwayLayerRef.current) return;
@@ -621,16 +714,6 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
     }
   };
 
-  // Symulacja przejazdu: natychmiastowe ustawienie ekspresu na pozycji 850m przed pieszym do podglądu animacji
-  const handleSimulateFlyby = () => {
-    if (!userPosition || trains.length === 0) return;
-    const train = trains[0];
-    if (train && train.path && train.path.length >= 2) {
-      train.currentPosition = { ...train.path[1] };
-      train.pathIndex = 1;
-      frameOnApproachingTrain();
-    }
-  };
 
   return (
     <div className="relative w-full h-full min-h-[300px] overflow-hidden bg-slate-950">
@@ -655,146 +738,100 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
           0%, 100% { opacity: 0.85; }
           50% { opacity: 1; }
         }
+        .zoom-low .train-badge-pill {
+          display: none !important;
+        }
+        .zoom-low .train-icon-container:hover .train-badge-pill {
+          display: flex !important;
+        }
+        .selected-train-marker .train-badge-pill {
+          display: flex !important;
+        }
       `}</style>
+
 
       <div ref={mapContainerRef} className="w-full h-full" />
 
-      {/* Pływający pasek statusu zbliżającego się pociągu (Lewy górny róg) */}
-      {nearestApproachingTrain && (
-        <div className="absolute top-3 left-3 z-[1000] bg-card/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-border/80 text-xs shadow-xl flex items-center gap-2 max-w-[calc(100%-160px)] sm:max-w-md">
-          <div
-            className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-              nearestApproachingTrain.dist <= 120
-                ? 'bg-destructive shadow-[0_0_12px_rgba(239,68,68,1)] animate-ping'
-                : nearestApproachingTrain.approaching
-                ? 'bg-destructive shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse'
-                : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
-            }`}
-          />
-          <span className="font-semibold truncate text-card-foreground text-[11px] sm:text-xs">
-            {nearestApproachingTrain.dist <= 120
-              ? '⚡ MIJA CIĘ TERAZ: '
-              : nearestApproachingTrain.approaching
-              ? '🚨 Zbliża się: '
-              : '✅ Minął Cię (oddala się): '}
-            <span className="font-mono font-bold">{nearestApproachingTrain.train.id}</span>
-            {' '}
-            (
-            {nearestApproachingTrain.dist >= 1000
-              ? `${(nearestApproachingTrain.dist / 1000).toFixed(1)} km`
-              : `${Math.round(nearestApproachingTrain.dist)} m`}
-            )
-          </span>
+      {/* Status pill — only when relevant */}
+      {(selectedTrain || (nearestApproachingTrain && nearestApproachingTrain.dist <= geofenceRadius)) && (
+        <div className="absolute top-3 left-3 z-[1000] bg-card/95 backdrop-blur-md px-2.5 py-1 rounded-lg border border-border/80 text-[11px] shadow-lg flex items-center gap-2 max-w-[calc(100%-100px)]">
+          {selectedTrain ? (
+            <>
+              <div className="w-2 h-2 rounded-full shrink-0 bg-amber-400" />
+              <span className="font-medium truncate">
+                <span className="font-mono font-bold">{selectedTrain.id}</span>
+                {selectedTrain.speed ? ` · ${Math.round(selectedTrain.speed * 3.6)} km/h` : ''}
+              </span>
+            </>
+          ) : nearestApproachingTrain ? (
+            <>
+              <div className={`w-2 h-2 rounded-full shrink-0 ${
+                nearestApproachingTrain.dist <= geofenceRadius * 0.5
+                  ? 'bg-destructive animate-ping'
+                  : 'bg-amber-500 animate-pulse'
+              }`} />
+              <span className="font-medium truncate">
+                <span className="font-mono font-bold">{nearestApproachingTrain.train.id}</span>
+                {' '}{Math.round(nearestApproachingTrain.dist)}m
+              </span>
+            </>
+          ) : null}
           <button
             onClick={frameOnApproachingTrain}
-            className="text-primary hover:text-primary/80 text-[11px] underline font-semibold ml-auto whitespace-nowrap cursor-pointer shrink-0"
+            className="text-primary text-[10px] font-semibold ml-auto shrink-0 hover:underline"
           >
             Pokaż
           </button>
         </div>
       )}
 
-      {/* Pływające przyciski kontrolne (Prawy górny róg) */}
-      <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-2">
-        {/* Przycisk autokadrowania na pociągu i pozycji użytkownika */}
+      {/* Floating controls — minimal */}
+      <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-1.5">
         {userPosition && (
           <Button
             size="sm"
             variant="outline"
-            className="h-9 px-2.5 text-xs gap-1.5 shadow-lg backdrop-blur-md bg-card/90 text-card-foreground border hover:bg-accent"
+            className="h-8 w-8 p-0 shadow-lg backdrop-blur-md bg-card/90 border hover:bg-accent"
             onClick={frameOnApproachingTrain}
-            title="Dopasuj widok do mnie i zbliżającego się pociągu"
+            title="Kadruj na pociąg"
           >
-            <Target className="h-4 w-4 text-emerald-500 animate-pulse" />
-            <span className="hidden sm:inline font-bold">Śledź skład</span>
-          </Button>
-        )}
-
-        {/* Przycisk testowania / podglądu animacji przejazdu */}
-        {userPosition && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-9 px-2.5 text-xs gap-1.5 shadow-lg backdrop-blur-md bg-destructive/10 border-destructive/30 text-destructive hover:bg-destructive/20"
-            onClick={handleSimulateFlyby}
-            title="Animuj przejazd pociągu obok mojej pozycji"
-          >
-            <TrainFront className="h-4 w-4 text-destructive animate-pulse" />
-            <span className="hidden sm:inline font-bold">Animuj przejazd</span>
+            <Target className="h-4 w-4 text-emerald-500" />
           </Button>
         )}
 
         <Button
           size="sm"
           variant="outline"
-          className="h-9 px-2.5 text-xs gap-1.5 shadow-lg backdrop-blur-md bg-card/90 text-card-foreground border hover:bg-accent"
+          className="h-8 w-8 p-0 shadow-lg backdrop-blur-md bg-card/90 border hover:bg-accent"
           onClick={() => setIsSettingsOpen(true)}
-          title="Ustawienia mapy & styl"
+          title="Ustawienia mapy"
         >
           <Settings className="h-4 w-4 text-primary" />
-          <span className="hidden sm:inline">Styl: {mapStyle === 'dark' ? 'Radar Dark' : mapStyle}</span>
         </Button>
-
-        <Button
-          size="sm"
-          variant={showRailwayOverlay ? 'default' : 'outline'}
-          className="h-9 px-2.5 text-xs gap-1.5 shadow-lg backdrop-blur-md bg-card/90 text-card-foreground border hover:bg-accent"
-          onClick={handleToggleRailwayOverlay}
-          title="Przełącz warstwę torów kolejowych (OpenRailwayMap)"
-        >
-          <Layers className="h-4 w-4" />
-          <span className="hidden sm:inline">Tory PLK</span>
-        </Button>
-
-        {onOpenSpotDialog && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-9 px-2.5 text-xs gap-1.5 shadow-lg backdrop-blur-md bg-amber-500/15 border-amber-500/40 text-amber-400 hover:bg-amber-500/25"
-            onClick={onOpenSpotDialog}
-            title="Zgłoś pociąg towarowy (Trainspotting)"
-          >
-            <PackageCheck className="h-4 w-4 text-amber-400" />
-            <span className="hidden sm:inline font-bold">Spotuj skład</span>
-          </Button>
-        )}
 
         {userPosition && (
           <Button
             size="sm"
             variant="outline"
-            className="h-9 w-9 p-0 shadow-lg backdrop-blur-md bg-card/90 text-card-foreground border hover:bg-accent self-end"
+            className="h-8 w-8 p-0 shadow-lg backdrop-blur-md bg-card/90 border hover:bg-accent"
             onClick={handleCenterOnUser}
-            title="Wyśrodkuj na mojej pozycji GPS"
+            title="Centruj na mnie"
           >
             <Locate className="h-4 w-4 text-primary" />
           </Button>
         )}
       </div>
 
-      {/* Dolny HUD: Status i legenda radarowa */}
-      <div className="absolute bottom-3 left-3 z-[1000] bg-card/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-border/80 text-[11px] text-card-foreground shadow-xl flex items-center gap-3">
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-destructive inline-block shadow-[0_0_6px_rgba(239,68,68,0.8)] animate-pulse"></span>
-          <span>Dzikie przejście</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-amber-500 inline-block shadow-[0_0_6px_rgba(245,158,11,0.8)]"></span>
-          <span>Strefa 200m</span>
-        </div>
-        <div className="flex items-center gap-1.5 hidden sm:flex">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-          <span>Wektor zbliżania</span>
-        </div>
-      </div>
-
       <MapSettingsDialog
+
         open={isSettingsOpen}
         onOpenChange={setIsSettingsOpen}
         currentStyle={mapStyle}
         onStyleChange={setMapStyle}
         showTracksOverlay={showRailwayOverlay}
         onTracksOverlayToggle={setShowRailwayOverlay}
+        geofenceRadius={geofenceRadius}
+        onGeofenceRadiusChange={setGeofenceRadius}
       />
     </div>
   );

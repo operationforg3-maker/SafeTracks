@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
-import { Clock, Gauge, Route, Train, AlertTriangle, ShieldCheck, Zap, ChevronRight, Activity } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Clock, Gauge, Route, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { cn } from '@/lib/utils';
 import type { Train as TrainType, AlertLevel } from '@/lib/types';
 import type { Position } from '@/hooks/use-geolocation';
 import { calculateDistanceMeters, isTrainApproaching } from '@/services/pkp-api';
+import { useGeofenceRadius } from '@/services/geofence-settings';
 
 interface TrainCardProps {
   train: TrainType;
@@ -14,165 +14,120 @@ interface TrainCardProps {
   onSelect?: (train: TrainType) => void;
 }
 
-const alertStyles: Record<AlertLevel, string> = {
-  safe: 'border-border/80 hover:border-primary/50 bg-card hover:shadow-md shadow-sm',
-  warning: 'border-amber-500/60 bg-amber-500/10 dark:bg-amber-500/15 shadow-sm',
-  critical: 'border-destructive bg-destructive/10 dark:bg-destructive/20 animate-pulse shadow-md',
-};
-
-const alertIcons: Record<AlertLevel, React.ReactNode> = {
-  safe: <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />,
-  warning: <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />,
-  critical: <AlertTriangle className="h-4 w-4 text-destructive animate-bounce shrink-0" />,
+const TYPE_COLORS: Record<string, string> = {
+  EIP: 'border-purple-500/50 bg-purple-500/10 text-purple-700 dark:text-purple-300',
+  IC: 'border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-300',
+  TLK: 'border-blue-400/50 bg-blue-400/10 text-blue-600 dark:text-blue-300',
+  KM: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  Polregio: 'border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300',
+  Cargo: 'border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300',
 };
 
 export function TrainCard({ train, userPosition, enthusiastMode, onSelect }: TrainCardProps) {
-  const directDistanceMeters = useMemo(() => {
+  const [geofenceRadius] = useGeofenceRadius();
+
+  const dist = useMemo(() => {
     if (!userPosition) return null;
     return calculateDistanceMeters(
-      userPosition.lat,
-      userPosition.lng,
-      train.currentPosition.lat,
-      train.currentPosition.lng
+      userPosition.lat, userPosition.lng,
+      train.currentPosition.lat, train.currentPosition.lng
     );
   }, [userPosition, train.currentPosition]);
 
-  const isApproaching = useMemo(() => {
+  const approaching = useMemo(() => {
     if (!userPosition) return true;
     return isTrainApproaching(
-      userPosition.lat,
-      userPosition.lng,
-      train.currentPosition.lat,
-      train.currentPosition.lng,
+      userPosition.lat, userPosition.lng,
+      train.currentPosition.lat, train.currentPosition.lng,
       train.heading || 0
     );
   }, [userPosition, train.currentPosition, train.heading]);
 
-  const directEtaSeconds = useMemo(() => {
-    if (!directDistanceMeters) return null;
-    const speed = Math.max(train.speed, 8); // min 8 m/s
-    return Math.round(directDistanceMeters / speed);
-  }, [directDistanceMeters, train.speed]);
+  const eta = useMemo(() => {
+    if (!dist) return null;
+    const speed = Math.max(train.speed, 8);
+    return Math.round(dist / speed);
+  }, [dist, train.speed]);
 
   const alertLevel: AlertLevel = useMemo(() => {
-    if (!userPosition || directEtaSeconds === null) return 'safe';
-    if (isApproaching) {
-      if (directEtaSeconds <= 35) return 'critical';
-      if (directEtaSeconds <= 120) return 'warning';
-    }
+    if (!dist) return 'safe';
+    if (dist <= geofenceRadius * 0.5 || (dist <= geofenceRadius && approaching && (eta ?? 999) <= 15)) return 'critical';
+    if (dist <= geofenceRadius || (dist <= geofenceRadius * 1.2 && approaching && (eta ?? 999) <= 30)) return 'warning';
     return 'safe';
-  }, [directEtaSeconds, isApproaching, userPosition]);
+  }, [dist, eta, approaching, geofenceRadius]);
 
-  const formattedETA = useMemo(() => {
-    if (directEtaSeconds === null || !userPosition) return '--:--';
-    if (!isApproaching && directDistanceMeters !== null && directDistanceMeters > 150) {
-      return 'Minął stację';
-    }
-    if (directEtaSeconds < 15) return 'Tuż obok';
-    if (directEtaSeconds < 60) return `${Math.round(directEtaSeconds)}s`;
-    const minutes = Math.floor(directEtaSeconds / 60);
-    const remainingSeconds = Math.round(directEtaSeconds % 60);
-    return `${minutes}m ${remainingSeconds.toString().padStart(2, '0')}s`;
-  }, [directEtaSeconds, isApproaching, directDistanceMeters, userPosition]);
+  const etaLabel = useMemo(() => {
+    if (!eta || !userPosition) return null;
+    if (!approaching && dist && dist > 200) return null;
+    if (eta < 15) return 'Tuż obok';
+    if (eta < 60) return `${eta}s`;
+    const m = Math.floor(eta / 60);
+    const s = eta % 60;
+    return `${m}m ${s.toString().padStart(2, '0')}s`;
+  }, [eta, approaching, dist, userPosition]);
 
   const kmh = Math.round(train.speed * 3.6);
+  const distLabel = dist
+    ? dist > 1000 ? `${(dist / 1000).toFixed(1)} km` : `${Math.round(dist)} m`
+    : null;
 
-  let typeBadgeColor = 'border-border text-foreground';
-  if (train.type === 'EIP') typeBadgeColor = 'border-purple-500/50 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-semibold';
-  else if (train.type === 'IC') typeBadgeColor = 'border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold';
-  else if (train.type === 'KM') typeBadgeColor = 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold';
-  else if (train.type === 'Polregio') typeBadgeColor = 'border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300 font-semibold';
-  else if (train.type === 'Cargo') typeBadgeColor = 'border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold';
-
-  const hasDelay = (train.delayMinutes || 0) > 0;
+  const typeBadgeColor = TYPE_COLORS[train.type] || 'border-border text-foreground';
 
   return (
-    <div className="transition-all duration-150">
-      <Card
-        onClick={() => onSelect && onSelect(train)}
-        className={cn(
-          "transition-all cursor-pointer border rounded-2xl hover:shadow-md backdrop-blur-sm",
-          alertStyles[alertLevel]
+    <div
+      onClick={() => onSelect?.(train)}
+      className={cn(
+        "flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-colors",
+        alertLevel === 'critical'
+          ? 'border-destructive bg-destructive/10 animate-pulse'
+          : alertLevel === 'warning'
+          ? 'border-amber-500/60 bg-amber-500/5'
+          : 'border-border/60 bg-card hover:bg-muted/40'
+      )}
+    >
+      {/* Left: type badge + train ID */}
+      <div className="flex flex-col items-center gap-0.5 shrink-0 w-12">
+        <Badge variant="outline" className={cn("text-[9px] font-mono px-1.5 py-0 h-4 rounded-full font-bold", typeBadgeColor)}>
+          {train.type}
+        </Badge>
+        {alertLevel !== 'safe' && (
+          <AlertTriangle className={cn("h-3 w-3", alertLevel === 'critical' ? 'text-destructive' : 'text-amber-500')} />
         )}
-      >
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1.5">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <CardTitle className="text-sm font-bold flex items-center gap-1 font-headline">
-              <Activity className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>{train.name ? `${train.id} "${train.name}"` : train.id}</span>
-            </CardTitle>
+      </div>
 
-            <Badge variant="outline" className={cn("text-[10px] font-mono px-1.5 py-0 h-4 rounded-full", typeBadgeColor)}>
-              {train.type}
-            </Badge>
-
-            {hasDelay ? (
-              <span className="bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/40 text-[9px] px-1.5 py-0 rounded font-mono font-bold">
-                +{train.delayMinutes} min
-              </span>
-            ) : (
-              <span className="text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 text-[9px] font-mono px-1 py-0 rounded font-semibold">
-                o czasie
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1 shrink-0">
-            {userPosition && alertIcons[alertLevel]}
-            <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-3 pt-0">
-          <div className="flex items-end justify-between gap-2 mt-1">
-            <div className="space-y-1 min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 text-xl font-bold font-mono">
-                <Clock className={cn("h-4 w-4", alertLevel === 'critical' ? 'text-destructive animate-pulse' : 'text-primary')} />
-                <span className={alertLevel === 'critical' ? 'text-destructive' : 'text-foreground'}>{formattedETA}</span>
-                {userPosition && (
-                  <span className="text-[10px] font-normal text-muted-foreground font-sans ml-1">
-                    {isApproaching ? '➔ zbliża się' : '⬅ minął posterunek'}
-                  </span>
-                )}
-              </div>
-
-              <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
-                <Route className="h-3 w-3 shrink-0 text-primary" />
-                <span className="truncate">{train.route}</span>
-              </p>
-            </div>
-
-            <div className="flex flex-col items-end gap-0.5 shrink-0">
-              <div className="flex items-center gap-1 text-xs font-semibold font-mono">
-                <Gauge className="h-3 w-3 text-muted-foreground" />
-                <span>{kmh} km/h</span>
-              </div>
-              {directDistanceMeters !== null && (
-                <span className="text-[10px] text-muted-foreground font-mono">
-                  {directDistanceMeters > 1000 ? `${(directDistanceMeters / 1000).toFixed(1)} km` : `${Math.round(directDistanceMeters)} m`}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {enthusiastMode && (
-            <div className="mt-2 pt-2 border-t text-[11px] grid grid-cols-2 gap-2 text-muted-foreground">
-              {train.rollingStock && (
-                <div className="flex items-center gap-1 truncate">
-                  <Train className="h-3 w-3 shrink-0 text-primary" />
-                  <span className="truncate font-medium text-foreground">{train.rollingStock}</span>
-                </div>
-              )}
-              {train.operator && (
-                <div className="flex items-center gap-1 truncate">
-                  <Zap className="h-3 w-3 shrink-0 text-amber-500" />
-                  <span className="truncate font-medium text-foreground">{train.operator}</span>
-                </div>
-              )}
-            </div>
+      {/* Center: train info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm font-bold font-headline truncate">{train.id}</span>
+          {train.name && <span className="text-xs text-muted-foreground truncate hidden sm:inline">"{train.name}"</span>}
+          {(train.delayMinutes || 0) > 0 && (
+            <span className="text-[9px] text-amber-600 dark:text-amber-400 font-mono font-bold">+{train.delayMinutes}'</span>
           )}
-        </CardContent>
-      </Card>
+        </div>
+        <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1">
+          <Route className="h-3 w-3 shrink-0 text-primary/60" />
+          <span className="truncate">{train.route}</span>
+        </p>
+        {enthusiastMode && train.rollingStock && (
+          <p className="text-[10px] text-muted-foreground/70 truncate mt-0.5">{train.rollingStock}</p>
+        )}
+      </div>
+
+      {/* Right: ETA + speed + distance */}
+      <div className="flex flex-col items-end gap-0.5 shrink-0">
+        {etaLabel && (
+          <span className={cn(
+            "text-sm font-bold font-mono",
+            alertLevel === 'critical' ? 'text-destructive' : 'text-foreground'
+          )}>
+            {etaLabel}
+          </span>
+        )}
+        <span className="text-[10px] text-muted-foreground font-mono">{kmh} km/h</span>
+        {distLabel && <span className="text-[10px] text-muted-foreground/70 font-mono">{distLabel}</span>}
+      </div>
+
+      <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
     </div>
   );
 }

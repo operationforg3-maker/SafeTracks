@@ -9,6 +9,7 @@ interface MapViewProps {
   enthusiastMode: boolean;
   onTrainSelect?: (train: Train) => void;
   onOpenSpotDialog?: () => void;
+  selectedTrain?: Train | null;
 }
 
 const DynamicRailwayMap = dynamic(
@@ -26,7 +27,7 @@ const DynamicRailwayMap = dynamic(
   }
 );
 
-export function MapView({ trains, enthusiastMode, onTrainSelect, onOpenSpotDialog }: MapViewProps) {
+export function MapView({ trains, enthusiastMode, onTrainSelect, onOpenSpotDialog, selectedTrain }: MapViewProps) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -51,6 +52,7 @@ export function MapView({ trains, enthusiastMode, onTrainSelect, onOpenSpotDialo
         enthusiastMode={enthusiastMode}
         onTrainSelect={onTrainSelect}
         onOpenSpotDialog={onOpenSpotDialog}
+        selectedTrain={selectedTrain}
       />
     </div>
   );
