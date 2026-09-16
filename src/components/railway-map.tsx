@@ -150,11 +150,12 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
 
       const map = L.map(mapContainerRef.current, {
         center: initialCenter,
-        zoom: 15,
+        zoom: 16,
         zoomControl: false,
       });
 
       L.control.zoom({ position: 'bottomright' }).addTo(map);
+      L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(map);
 
       const updateZoomClasses = () => {
         if (!mapContainerRef.current) return;
@@ -306,22 +307,18 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         ]);
         map.fitBounds(bounds.pad(0.35), { maxZoom: 15, minZoom: 11, animate: true });
       } else {
-        map.setView([userPosition.lat, userPosition.lng], 15, { animate: true });
+        map.setView([userPosition.lat, userPosition.lng], 16, { animate: true });
       }
     });
   }, [userPosition, nearestApproachingTrain, trains]);
 
-  // Automatyczne pierwsze wykadrowanie po załadowaniu pozycji GPS i pociągów
+  // Automatyczne pierwsze wycentrowanie na użytkowniku w przybliżeniu (zoom 16: ~1cm = 100m)
   useEffect(() => {
     if (mapReady && userPosition && !hasInitialFramedRef.current) {
-      if (trains.length > 0) {
-        frameOnApproachingTrain();
-        hasInitialFramedRef.current = true;
-      } else {
-        mapInstanceRef.current?.setView([userPosition.lat, userPosition.lng], 15, { animate: true });
-      }
+      mapInstanceRef.current?.setView([userPosition.lat, userPosition.lng], 16, { animate: true });
+      hasInitialFramedRef.current = true;
     }
-  }, [mapReady, userPosition, trains.length, frameOnApproachingTrain]);
+  }, [mapReady, userPosition]);
 
 
   // Aktualizacja pozycji użytkownika i strefy geofencingu (regulowany promień)

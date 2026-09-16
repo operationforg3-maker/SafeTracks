@@ -4,9 +4,8 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Map, Layers, Key, ShieldAlert, Sparkles, Check, ShieldCheck } from 'lucide-react';
+import { RadioGroup } from '@/components/ui/radio-group';
+import { Map, Check, ShieldCheck } from 'lucide-react';
 
 import {
   GEOFENCE_RADIUS_KEY,
@@ -41,22 +40,6 @@ export function MapSettingsDialog({
   geofenceRadius,
   onGeofenceRadiusChange,
 }: MapSettingsDialogProps) {
-  const [apiKey, setApiKey] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('safetracks_map_key') || '';
-    }
-    return '';
-  });
-  const [savedKeySuccess, setSavedKeySuccess] = useState(false);
-
-  const handleSaveApiKey = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('safetracks_map_key', apiKey.trim());
-      setSavedKeySuccess(true);
-      setTimeout(() => setSavedKeySuccess(false), 2000);
-    }
-  };
-
   const handleGeofenceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value, 10);
     onGeofenceRadiusChange(val);
@@ -78,7 +61,7 @@ export function MapSettingsDialog({
                 Ustawienia Mapy & Radar24
               </DialogTitle>
               <DialogDescription className="text-xs">
-                Dostosuj wygląd mapy szlakowej, podkłady satelitarne oraz klucze API.
+                Dostosuj podkład mapy szlakowej, zdjęcia satelitarne oraz strefę ostrzegania.
               </DialogDescription>
             </div>
           </div>
@@ -183,37 +166,6 @@ export function MapSettingsDialog({
             </div>
             <p className="text-[10px] text-muted-foreground">
               Pociąg w tej odległości od Ciebie wywoła <b>alarm dźwiękowy</b> i animację na mapie.
-            </p>
-          </div>
-
-          {/* Opcjonalny klucz API zewnętrznego dostawcy */}
-          <div className="border-t pt-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="map-api-key" className="text-xs font-semibold flex items-center gap-1.5">
-                <Key className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>Opcjonalny klucz API (Google Maps / Mapbox)</span>
-              </Label>
-              {savedKeySuccess && (
-                <span className="text-[11px] text-emerald-500 font-semibold flex items-center gap-1">
-                  <Check className="h-3 w-3" /> Zapisano!
-                </span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Input
-                id="map-api-key"
-                type="password"
-                placeholder="Wklej API Key (np. AIzaSy... lub pk.ey...)"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                className="h-9 text-xs font-mono"
-              />
-              <Button size="sm" onClick={handleSaveApiKey} className="h-9 text-xs px-3">
-                Zapisz
-              </Button>
-            </div>
-            <p className="text-[10px] text-muted-foreground">
-              Aplikacja <b>nie wymaga żadnego klucza do pełnego działania</b> — podkłady Dark Radar, Satelita oraz OpenRailwayMap działają natywnie i bezpłatnie.
             </p>
           </div>
         </div>
