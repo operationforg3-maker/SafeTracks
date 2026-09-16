@@ -15,9 +15,10 @@ for (const st of stationsData) {
   stationsById.set(st.id, st);
 }
 
-// In-memory cache serwerowy (TTL 30 sekund)
-const cache = new Map();
-const CACHE_TTL_MS = 30 * 1000;
+// In-memory cache surowych odpowiedzi PLK (TTL 10 sekund)
+// Pozycje pociągów są przeliczane dynamicznie dla każdego żądania (zero opóźnienia)
+const rawPlkCache = new Map();
+const RAW_CACHE_TTL_MS = 10 * 1000;
 
 function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
   const R = 6371e3;
@@ -166,48 +167,54 @@ async function handleStationTrains(req, res, parsedUrl) {
     };
   }
 
+  const leadSecondsParam = query.leadSeconds ? parseInt(query.leadSeconds, 10) : 35;
+  const leadMs = (!isNaN(leadSecondsParam) && leadSecondsParam >= 0 && leadSecondsParam <= 120 ? leadSecondsParam : 35) * 1000;
   const nowMs = Date.now();
-  const cached = cache.get(stationId);
-  if (cached && nowMs - cached.timestamp < CACHE_TTL_MS) {
-    res.writeHead(200, {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'public, max-age=15',
-    });
-    return res.end(
-      JSON.stringify({
-        ...cached.data,
-        cached: true,
-        cacheAgeSeconds: Math.round((nowMs - cached.timestamp) / 1000),
-      })
-    );
-  }
+  const effectiveNowMs = nowMs + leadMs;
 
   try {
-    const headers = {
-      'X-API-Key': API_KEY,
-      'Accept': 'application/json',
-    };
-
-    const [schedulesRes, operationsRes] = await Promise.all([
-      fetch(`${PLK_API_BASE_URL}/schedules?stations=${stationId}&pageSize=100`, { headers }).catch(
-        () => null
-      ),
-      fetch(
-        `${PLK_API_BASE_URL}/operations?stations=${stationId}&withPlanned=true&fullRoutes=true&pageSize=100`,
-        { headers }
-      ).catch(() => null),
-    ]);
-
     let schedulesData = null;
     let operationsData = null;
 
-    if (schedulesRes && schedulesRes.ok) {
-      schedulesData = await schedulesRes.json().catch(() => null);
+    const rawCached = rawPlkCache.get(stationId);
+  if (rawCached && nowMs - rawCached.timestamp < RAW_CACHE_TTL_MS) {
+    schedulesData = rawCached.schedulesData;
+    operationsData = rawCached.operationsData;
+  } else {
+    try {
+      const headers = {
+        'X-API-Key': API_KEY,
+        'Accept': 'application/json',
+      };
+
+      const [schedulesRes, operationsRes] = await Promise.all([
+        fetch(`${PLK_API_BASE_URL}/schedules?stations=${stationId}&pageSize=100`, { headers }).catch(
+          () => null
+        ),
+        fetch(
+          `${PLK_API_BASE_URL}/operations?stations=${stationId}&withPlanned=true&fullRoutes=true&pageSize=100`,
+          { headers }
+        ).catch(() => null),
+      ]);
+
+      if (schedulesRes && schedulesRes.ok) {
+        schedulesData = await schedulesRes.json().catch(() => null);
+      }
+      if (operationsRes && operationsRes.ok) {
+        operationsData = await operationsRes.json().catch(() => null);
+      }
+
+      if (schedulesData || operationsData) {
+        rawPlkCache.set(stationId, {
+          timestamp: nowMs,
+          schedulesData,
+          operationsData,
+        });
+      }
+    } catch (fetchErr) {
+      console.warn('[PLK Fetch Warning]:', fetchErr);
     }
-    if (operationsRes && operationsRes.ok) {
-      operationsData = await operationsRes.json().catch(() => null);
-    }
+  }
 
     const routesMap = new Map();
     if (schedulesData && schedulesData.routes) {
@@ -304,14 +311,14 @@ async function handleStationTrains(req, res, parsedUrl) {
       let calculatedHeading = 0;
       let estimatedSpeedKmh = 0; // Domyślnie 0 (postój / oczekiwanie)
 
-      // Wyznaczanie segmentu między stacjami
+      // Wyznaczanie segmentu między stacjami z uwzględnieniem kompensacji opóźnienia telemetrii (effectiveNowMs)
       let lastVisitedIndex = -1;
       for (let i = 0; i < opStations.length; i++) {
         const st = opStations[i];
         const tStr = st.actualDeparture || st.actualArrival || st.plannedDeparture || st.plannedArrival;
         if (tStr) {
           const tDate = parsePlkDate(tStr)?.getTime();
-          if (st.isConfirmed || (tDate && tDate <= nowMs)) {
+          if (st.isConfirmed || (tDate && tDate <= effectiveNowMs)) {
             lastVisitedIndex = i;
           }
         }
@@ -326,13 +333,13 @@ async function handleStationTrains(req, res, parsedUrl) {
         if (prevStation && nextStation) {
           const prevDepTime = parsePlkDate(
             prevStop.actualDeparture || prevStop.plannedDeparture || prevStop.actualArrival || prevStop.plannedArrival
-          )?.getTime() || nowMs;
+          )?.getTime() || effectiveNowMs;
           const nextArrTime = parsePlkDate(
             nextStop.actualArrival || nextStop.plannedArrival || nextStop.actualDeparture || nextStop.plannedDeparture
-          )?.getTime() || (nowMs + 600000);
+          )?.getTime() || (effectiveNowMs + 600000);
 
           // Sprawdzenie czy pociąg faktycznie odjechał ze stacji, czy ma postój na peronie
-          if (nowMs < prevDepTime) {
+          if (effectiveNowMs < prevDepTime) {
             // Postój na stacji (dwell time)
             trainLat = prevStation.lat;
             trainLng = prevStation.lng;
@@ -340,7 +347,7 @@ async function handleStationTrains(req, res, parsedUrl) {
             calculatedHeading = calculateBearing(prevStation.lat, prevStation.lng, nextStation.lat, nextStation.lng);
           } else {
             const totalDuration = Math.max(5000, nextArrTime - prevDepTime);
-            const elapsed = Math.max(0, Math.min(totalDuration, nowMs - prevDepTime));
+            const elapsed = Math.max(0, Math.min(totalDuration, effectiveNowMs - prevDepTime));
             const progressRatio = elapsed / totalDuration;
 
             // Rzeczywista fizyczna ścieżka po torach między tymi stacjami (geodezja torowa)
@@ -422,8 +429,8 @@ async function handleStationTrains(req, res, parsedUrl) {
         if (i < lastVisitedIndex) {
           stopStatus = 'passed';
         } else if (i === lastVisitedIndex) {
-          const depTime = parsePlkDate(st.actualDeparture || st.plannedDeparture)?.getTime() || nowMs;
-          stopStatus = (nowMs < depTime) ? 'current' : 'passed';
+          const depTime = parsePlkDate(st.actualDeparture || st.plannedDeparture)?.getTime() || effectiveNowMs;
+          stopStatus = (effectiveNowMs < depTime) ? 'current' : 'passed';
         } else if (i === lastVisitedIndex + 1) {
           stopStatus = 'next';
         }
@@ -448,6 +455,19 @@ async function handleStationTrains(req, res, parsedUrl) {
         ? enrichPathWithPhysicalRails(pathPoints)
         : [{ lat: trainLat, lng: trainLng }];
 
+      // Wyznacz dokładny indeks na fizycznej ścieżce (waypoint) dla płynnego dead-reckoningu
+      let currentPathIndex = 0;
+      if (physicalFullPath.length > 1) {
+        let minDist = Infinity;
+        for (let p = 0; p < physicalFullPath.length; p++) {
+          const d = calculateDistanceMeters(trainLat, trainLng, physicalFullPath[p].lat, physicalFullPath[p].lng);
+          if (d < minDist) {
+            minDist = d;
+            currentPathIndex = p;
+          }
+        }
+      }
+
       trains.push({
         id: trainId,
         name: trainName,
@@ -463,7 +483,7 @@ async function handleStationTrains(req, res, parsedUrl) {
         heading: calculatedHeading,
         lastUpdate: nowMs,
         path: physicalFullPath,
-        pathIndex: Math.max(0, lastVisitedIndex),
+        pathIndex: currentPathIndex,
         origin: originName,
         destination: destinationName,
         delayMinutes: delayMin,
@@ -491,18 +511,16 @@ async function handleStationTrains(req, res, parsedUrl) {
       trains: mergedTrains,
       totalFound: mergedTrains.length,
       generatedAt: new Date().toISOString(),
-      cached: false,
+      leadSeconds: Math.round(leadMs / 1000),
+      cached: Boolean(rawCached),
     };
-
-    cache.set(stationId, {
-      timestamp: nowMs,
-      data: responsePayload,
-    });
 
     res.writeHead(200, {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'public, max-age=15',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+      'Pragma': 'no-cache',
+      'Expires': '0',
     });
     res.end(JSON.stringify(responsePayload));
   } catch (err) {

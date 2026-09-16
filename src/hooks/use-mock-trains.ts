@@ -63,23 +63,37 @@ export const useMockTrains = (userPosition?: Position): UseLiveTrainsReturn => {
           if (prevTrains.length === 0) {
             return response.trains;
           }
-          // Zachowaj ciągły ruch jadących pociągów, aby nie cofać ich co 20 sekund
           const existingMap = new Map(prevTrains.map((t) => [t.id, t]));
           return response.trains.map((newTrain) => {
             const existing = existingMap.get(newTrain.id);
             if (!existing) return newTrain;
 
-            // Jeśli serwer zarejestrował minięcie kolejnej stacji (postęp na trasie), przyjmij nową pozycję
-            if ((newTrain.pathIndex ?? 0) > (existing.pathIndex ?? 0) + 1) {
+            // Oblicz różnicę odległości między lokalną estymacją a świeżą telemetrią z serwera
+            const dLat = (newTrain.currentPosition.lat - existing.currentPosition.lat) * 111139;
+            const dLng =
+              (newTrain.currentPosition.lng - existing.currentPosition.lng) *
+              111139 *
+              Math.cos((existing.currentPosition.lat * Math.PI) / 180);
+            const distMeters = Math.sqrt(dLat * dLat + dLng * dLng);
+
+            // Jeśli pociąg stoi lub nastąpił przeskok/drift > 70m (np. minięcie stacji lub wybudzenie telefonu z tła):
+            // natychmiast zaadoptuj rzeczywistą pozycję z serwera
+            if (newTrain.speed === 0 || distMeters > 70) {
               return newTrain;
             }
 
-            // W obrębie tego samego segmentu zachowaj płynną pozycję dead-reckoning
+            // W ruchu płynnym: łagodnie pociągnij (blend 70%) pozycję w stronę serwera, eliminując jakiekolwiek opóźnienie
+            const blendedLat = existing.currentPosition.lat * 0.3 + newTrain.currentPosition.lat * 0.7;
+            const blendedLng = existing.currentPosition.lng * 0.3 + newTrain.currentPosition.lng * 0.7;
+
             return {
               ...newTrain,
-              currentPosition: existing.currentPosition,
-              pathIndex: existing.pathIndex,
-              heading: existing.heading,
+              currentPosition: {
+                lat: Number(blendedLat.toFixed(5)),
+                lng: Number(blendedLng.toFixed(5)),
+              },
+              pathIndex: newTrain.pathIndex,
+              heading: newTrain.heading,
               path: newTrain.path && newTrain.path.length > 2 ? newTrain.path : existing.path,
             };
           });
@@ -102,23 +116,29 @@ export const useMockTrains = (userPosition?: Position): UseLiveTrainsReturn => {
     }
   }, [activeStation, fetchTrains]);
 
-  // Cykliczne odpytywanie serwera co 20 sekund
+  // Cykliczne odpytywanie serwera co 6 sekund dla maksymalnej dokładności live
   useEffect(() => {
     const serverSyncInterval = setInterval(() => {
       fetchTrains();
-    }, 20000);
+    }, 6000);
 
     return () => clearInterval(serverSyncInterval);
   }, [fetchTrains]);
 
-  // Ciągła, jedwabiście płynna mikro-interpolacja pozycji składów co 600ms (60 FPS feel)
+  // Ciągła, jedwabiście płynna mikro-interpolacja pozycji składów co 500ms
+  // z rzeczywistym czasem delta, chroniącym przed lagiem w uśpionych kartach
   useEffect(() => {
+    let lastTick = performance.now();
     const deadReckoningInterval = setInterval(() => {
+      const now = performance.now();
+      const deltaSeconds = Math.min(2.0, Math.max(0.1, (now - lastTick) / 1000));
+      lastTick = now;
+
       setTrains((prevTrains) => {
         if (prevTrains.length === 0) return prevTrains;
-        return advanceTrainsPosition(prevTrains, 0.6);
+        return advanceTrainsPosition(prevTrains, deltaSeconds);
       });
-    }, 600);
+    }, 500);
 
     return () => clearInterval(deadReckoningInterval);
   }, []);

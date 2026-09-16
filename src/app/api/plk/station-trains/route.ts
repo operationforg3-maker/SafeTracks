@@ -17,9 +17,9 @@ interface CacheEntry {
   };
 }
 
-// In-memory cache serwerowy (TTL 30 sekund) chroniący przed przekroczeniem limitu zapytań (500 req/h)
-const cache = new Map<number, CacheEntry>();
-const CACHE_TTL_MS = 30 * 1000;
+// In-memory cache surowych odpowiedzi z API PLK (TTL 10 sekund)
+const rawPlkCache = new Map<number, { timestamp: number; schedulesData: any; operationsData: any }>();
+const RAW_CACHE_TTL_MS = 10 * 1000;
 
 // Indeks stacji dla szybkiego wyszukiwania po ID
 const stationsById = new Map<number, { id: number; name: string; lat: number; lng: number }>();
@@ -99,43 +99,52 @@ export async function GET(request: NextRequest) {
       station = stationsById.get(33605) || { id: 33605, name: 'Warszawa Centralna', lat: 52.2288, lng: 21.0032 };
     }
 
-    // Sprawdź cache
+    const leadSecondsParam = searchParams.get('leadSeconds');
+    const leadSeconds = leadSecondsParam ? parseInt(leadSecondsParam, 10) : 35;
+    const leadMs = (!isNaN(leadSeconds) && leadSeconds >= 0 && leadSeconds <= 120 ? leadSeconds : 35) * 1000;
     const nowMs = Date.now();
-    const cached = cache.get(stationId);
-    if (cached && nowMs - cached.timestamp < CACHE_TTL_MS) {
-      return NextResponse.json({
-        ...cached.data,
-        cached: true,
-        cacheAgeSeconds: Math.round((nowMs - cached.timestamp) / 1000),
-      });
-    }
-
-    const apiKey = getApiKey();
-    const headers = {
-      'X-API-Key': apiKey,
-      'Accept': 'application/json',
-    };
-
-    // Równoległe odpytanie API PKP PLK o rozkład (schedules) i wykonanie na żywo (operations)
-    const [schedulesRes, operationsRes] = await Promise.all([
-      fetch(`${PLK_API_BASE_URL}/schedules?stations=${stationId}&pageSize=100`, {
-        headers,
-        next: { revalidate: 30 },
-      }).catch(() => null),
-      fetch(`${PLK_API_BASE_URL}/operations?stations=${stationId}&withPlanned=true&fullRoutes=true&pageSize=100`, {
-        headers,
-        next: { revalidate: 30 },
-      }).catch(() => null),
-    ]);
+    const effectiveNowMs = nowMs + leadMs;
 
     let schedulesData: any = null;
     let operationsData: any = null;
 
-    if (schedulesRes && schedulesRes.ok) {
-      schedulesData = await schedulesRes.json().catch(() => null);
-    }
-    if (operationsRes && operationsRes.ok) {
-      operationsData = await operationsRes.json().catch(() => null);
+    const rawCached = rawPlkCache.get(stationId);
+    if (rawCached && nowMs - rawCached.timestamp < RAW_CACHE_TTL_MS) {
+      schedulesData = rawCached.schedulesData;
+      operationsData = rawCached.operationsData;
+    } else {
+      const apiKey = getApiKey();
+      const headers = {
+        'X-API-Key': apiKey,
+        'Accept': 'application/json',
+      };
+
+      // Równoległe odpytanie API PKP PLK o rozkład (schedules) i wykonanie na żywo (operations)
+      const [schedulesRes, operationsRes] = await Promise.all([
+        fetch(`${PLK_API_BASE_URL}/schedules?stations=${stationId}&pageSize=100`, {
+          headers,
+          cache: 'no-store',
+        }).catch(() => null),
+        fetch(`${PLK_API_BASE_URL}/operations?stations=${stationId}&withPlanned=true&fullRoutes=true&pageSize=100`, {
+          headers,
+          cache: 'no-store',
+        }).catch(() => null),
+      ]);
+
+      if (schedulesRes && schedulesRes.ok) {
+        schedulesData = await schedulesRes.json().catch(() => null);
+      }
+      if (operationsRes && operationsRes.ok) {
+        operationsData = await operationsRes.json().catch(() => null);
+      }
+
+      if (schedulesData || operationsData) {
+        rawPlkCache.set(stationId, {
+          timestamp: nowMs,
+          schedulesData,
+          operationsData,
+        });
+      }
     }
 
     // Słowniki z odpowiedzi PKP PLK
@@ -235,14 +244,14 @@ export async function GET(request: NextRequest) {
       }
 
       // Znajdź segment szlaku, na którym aktualnie znajduje się skład
-      // Ostatnia stacja z potwierdzonym odjazdem lub przeszłym czasem
+      // Ostatnia stacja z potwierdzonym odjazdem lub przeszłym czasem (z wyprzedzeniem telemetrii)
       let lastVisitedIndex = -1;
       for (let i = 0; i < opStations.length; i++) {
         const st = opStations[i];
         const tStr = st.actualDeparture || st.actualArrival || st.plannedDeparture || st.plannedArrival;
         if (tStr) {
           const tDate = new Date(tStr).getTime();
-          if (st.isConfirmed || tDate <= nowMs) {
+          if (st.isConfirmed || tDate <= effectiveNowMs) {
             lastVisitedIndex = i;
           }
         }
@@ -261,7 +270,7 @@ export async function GET(request: NextRequest) {
           const nextArrTime = new Date(nextStop.actualArrival || nextStop.plannedArrival || nextStop.actualDeparture || nextStop.plannedDeparture).getTime();
 
           const totalDuration = Math.max(1, nextArrTime - prevDepTime);
-          const elapsed = Math.max(0, Math.min(totalDuration, nowMs - prevDepTime));
+          const elapsed = Math.max(0, Math.min(totalDuration, effectiveNowMs - prevDepTime));
           const progressRatio = elapsed / totalDuration;
 
           trainLat = prevStation.lat + (nextStation.lat - prevStation.lat) * progressRatio;
@@ -327,16 +336,18 @@ export async function GET(request: NextRequest) {
       generatedAt: new Date().toISOString(),
     };
 
-    // Zapis w pamięci serwera
-    cache.set(stationId, {
-      timestamp: nowMs,
-      data: responsePayload,
-    });
-
-    return NextResponse.json({
-      ...responsePayload,
-      cached: false,
-    });
+    return NextResponse.json(
+      {
+        ...responsePayload,
+        cached: Boolean(rawCached),
+      },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+        },
+      }
+    );
   } catch (error: any) {
     console.error('[PLK API Route Error]:', error);
     return NextResponse.json(
