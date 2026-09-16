@@ -61,14 +61,26 @@ export function TrainDetailDrawer({ train, isOpen, onClose, userPosition }: Trai
             </div>
 
             <div className="text-right">
-              <div className="text-2xl font-bold font-mono tracking-tight text-foreground flex items-center justify-end gap-1">
-                <Gauge className="h-5 w-5 text-accent" />
-                <span>{speedKmh}</span>
-                <span className="text-xs font-normal text-muted-foreground">km/h</span>
-              </div>
-              <span className="text-[10px] text-muted-foreground font-mono">
-                {train.speed.toFixed(1)} m/s
-              </span>
+              {speedKmh > 0 ? (
+                <>
+                  <div className="text-2xl font-bold font-mono tracking-tight text-foreground flex items-center justify-end gap-1">
+                    <Gauge className="h-5 w-5 text-accent" />
+                    <span>{speedKmh}</span>
+                    <span className="text-xs font-normal text-muted-foreground">km/h</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {train.speed.toFixed(1)} m/s
+                  </span>
+                </>
+              ) : (
+                <div className="flex flex-col items-end gap-0.5">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-sm">
+                    <Gauge className="h-4 w-4" />
+                    <span>Postój</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">stacja / semafor</span>
+                </div>
+              )}
             </div>
           </div>
         </SheetHeader>

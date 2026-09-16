@@ -128,7 +128,11 @@ export function TrainCard({ train, userPosition, enthusiastMode, onSelect }: Tra
             {etaLabel}
           </span>
         )}
-        <span className="text-[10px] text-muted-foreground font-mono">{kmh} km/h</span>
+        {kmh > 0 ? (
+          <span className="text-[10px] text-muted-foreground font-mono">{kmh} km/h</span>
+        ) : (
+          <span className="text-[9px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1 py-0.2 rounded border border-amber-500/20">Postój</span>
+        )}
         {distLabel && <span className="text-[10px] text-muted-foreground/70 font-mono">{distLabel}</span>}
       </div>
 

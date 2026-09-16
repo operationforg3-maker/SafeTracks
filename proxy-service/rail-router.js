@@ -155,6 +155,9 @@ function enrichPathWithPhysicalRails(sparseStations) {
     }
   }
 
+  return fullTrack;
+}
+
 function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
   const R = 6371e3;
   const p1 = (lat1 * Math.PI) / 180, p2 = (lat2 * Math.PI) / 180;

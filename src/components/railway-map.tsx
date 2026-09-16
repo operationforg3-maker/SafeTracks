@@ -509,7 +509,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
               </svg>
             </div>
             <div style="position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: #FCD34D; color: #0F172A; font-weight: 900; font-size: 11px; padding: 3px 8px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.5);">
-              🎯 ${selectedTrain.id} · ${kmh} km/h
+              🎯 ${selectedTrain.id} · ${kmh > 0 ? `${kmh} km/h` : 'Postój'}
             </div>
           </div>
         `,
@@ -638,7 +638,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
                        <span style="font-family: monospace; letter-spacing: 0.3px;">${train.conjoinedCount && train.conjoinedCount > 1 ? `${train.id.split(' ')[0]} ${train.id.split(' ')[1]} (+${train.conjoinedCount - 1})` : train.id}</span>
                        ${train.conjoinedCount && train.conjoinedCount > 1 ? `<span style="background: rgba(59, 130, 246, 0.3); color: #93C5FD; font-size: 8.5px; padding: 1px 4px; border-radius: 3px; font-weight: 800;">x${train.conjoinedCount}</span>` : ''}
                        <span style="opacity: 0.4;">•</span>
-                       <span style="background: rgba(255,255,255,0.15); font-size: 9px; padding: 1px 4px; border-radius: 3px; font-family: monospace;">${kmh} km/h</span>
+                       <span style="background: ${kmh > 0 ? 'rgba(255,255,255,0.15)' : 'rgba(245, 158, 11, 0.25)'}; color: ${kmh > 0 ? '#F8FAFC' : '#FBBF24'}; font-size: 9px; padding: 1px 4px; border-radius: 3px; font-family: monospace; font-weight: ${kmh > 0 ? 'normal' : 'bold'};">${kmh > 0 ? `${kmh} km/h` : 'Postój'}</span>
                      </div>`
               }
               ${
@@ -761,7 +761,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
               <div className="w-2 h-2 rounded-full shrink-0 bg-amber-400" />
               <span className="font-medium truncate">
                 <span className="font-mono font-bold">{selectedTrain.id}</span>
-                {selectedTrain.speed ? ` · ${Math.round(selectedTrain.speed * 3.6)} km/h` : ''}
+                {typeof selectedTrain.speed === 'number' && selectedTrain.speed > 0 ? ` · ${Math.round(selectedTrain.speed * 3.6)} km/h` : ' · Postój'}
               </span>
             </>
           ) : nearestApproachingTrain ? (

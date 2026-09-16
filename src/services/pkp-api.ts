@@ -489,7 +489,7 @@ export function generateStationTrainsFallback(
       operator: defaultCarrier,
       rollingStock: 'EN57-AKM / Impuls',
       currentPosition: pos1,
-      speed: 20, // 72 km/h
+      speed: 24.2, // ~87 km/h
       heading: heading1,
       lastUpdate: now,
       path: path1,
@@ -506,7 +506,7 @@ export function generateStationTrainsFallback(
       operator: 'PKP Intercity',
       rollingStock: 'ED160 (Stadler FLIRT3)',
       currentPosition: pos2,
-      speed: 25, // 90 km/h
+      speed: 34.7, // ~125 km/h
       heading: heading2,
       lastUpdate: now,
       path: path2,
@@ -580,12 +580,27 @@ export function advanceTrainsPosition(trains: Train[], deltaSeconds: number = 1)
     const newLng = currentPos.lng + (targetWaypoint.lng - currentPos.lng) * ratio;
     const heading = calculateBearing(currentPos.lat, currentPos.lng, targetWaypoint.lat, targetWaypoint.lng);
 
+    // Realistyczne mikro-modulacje prędkości live (jak w prędkościomierzu GPS lokomotywy)
+    let liveSpeed = train.speed;
+    const seed = (train.id.charCodeAt(0) * 17 + (train.id.charCodeAt(train.id.length - 1) || 0)) % 100;
+    const nowMs = Date.now();
+    const microModulation = Math.sin((nowMs / 2500) + seed) * 0.35; // +/- 0.35 m/s (~1.2 km/h)
+
+    // Jeśli pociąg zbliża się do końca segmentu trasy
+    const remainingWaypoints = train.path.length - 1 - pathIdx;
+    if (remainingWaypoints <= 1 && distToTarget < 80) {
+      liveSpeed = Math.max(4, train.speed * 0.7);
+    } else {
+      liveSpeed = Math.max(6, train.speed + microModulation);
+    }
+
     return {
       ...train,
       currentPosition: {
         lat: Number(newLat.toFixed(5)),
         lng: Number(newLng.toFixed(5)),
       },
+      speed: Number(liveSpeed.toFixed(2)),
       pathIndex: pathIdx,
       heading,
       lastUpdate: Date.now(),
