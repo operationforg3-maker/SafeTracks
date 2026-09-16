@@ -8,7 +8,7 @@ import { useMockTrains } from '@/hooks/use-mock-trains';
 import { ProximityAlertBanner } from '@/components/proximity-alert-banner';
 import { PwaInstallBanner } from '@/components/pwa-install-banner';
 import { TrainSpotDialog } from '@/components/train-spot-dialog';
-import { TrainDetailDrawer } from '@/components/train-detail-drawer';
+import { TrainDetailPanel } from '@/components/train-detail-panel';
 import { StationSearchDialog } from '@/components/station-search-dialog';
 import { RadarLoader } from '@/components/radar-loader';
 import { useGeolocation } from '@/hooks/use-geolocation';
@@ -123,20 +123,41 @@ export default function Home() {
               />
             </div>
           )}
+
+          {/* Mobile: Non-blocking Floating Bottom Inspector Card */}
+          {selectedTrain && (
+            <div className="sm:hidden absolute inset-x-0 bottom-0 z-[1000] max-h-[58vh] flex flex-col bg-card/98 backdrop-blur-md rounded-t-2xl border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-300">
+              <div className="w-12 h-1 bg-muted-foreground/30 rounded-full mx-auto mt-2 mb-1 shrink-0" />
+              <TrainDetailPanel
+                train={selectedTrain}
+                onClose={() => setSelectedTrain(null)}
+                userPosition={userPosition}
+                isMobileDrawer={true}
+              />
+            </div>
+          )}
         </div>
 
-        {/* Desktop: sidebar */}
-        <div className="hidden sm:flex sm:w-[360px] lg:w-[400px] border-l">
-          <Dashboard
-            trains={trains}
-            enthusiastMode={enthusiastMode}
-            onTrainSelect={(train) => setSelectedTrain(train)}
-            activeStation={activeStation}
-            onOpenStationSearch={() => setIsStationSearchOpen(true)}
-            isLoading={isLoadingTrains}
-            lastSync={lastSync}
-            onRefresh={refreshNow}
-          />
+        {/* Desktop: sidebar (Switches to TrainDetailPanel when a train is selected, leaving map 100% visible!) */}
+        <div className="hidden sm:flex sm:w-[380px] lg:w-[420px] border-l shrink-0">
+          {selectedTrain ? (
+            <TrainDetailPanel
+              train={selectedTrain}
+              onClose={() => setSelectedTrain(null)}
+              userPosition={userPosition}
+            />
+          ) : (
+            <Dashboard
+              trains={trains}
+              enthusiastMode={enthusiastMode}
+              onTrainSelect={(train) => setSelectedTrain(train)}
+              activeStation={activeStation}
+              onOpenStationSearch={() => setIsStationSearchOpen(true)}
+              isLoading={isLoadingTrains}
+              lastSync={lastSync}
+              onRefresh={refreshNow}
+            />
+          )}
         </div>
       </main>
 
@@ -151,13 +172,6 @@ export default function Home() {
         onOpenChange={setIsStationSearchOpen}
         activeStation={activeStation}
         onSelectStation={(station) => setActiveStation(station)}
-        userPosition={userPosition}
-      />
-
-      <TrainDetailDrawer
-        train={selectedTrain}
-        isOpen={Boolean(selectedTrain)}
-        onClose={() => setSelectedTrain(null)}
         userPosition={userPosition}
       />
 

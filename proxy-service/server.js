@@ -403,6 +403,46 @@ async function handleStationTrains(req, res, parsedUrl) {
         }
       }
 
+      // Budowa szczegółowego rozkładu stacji i opóźnień (timetable)
+      const timetable = [];
+      const formatTime = (timeStr) => {
+        if (!timeStr) return undefined;
+        const d = parsePlkDate(timeStr);
+        if (!d || isNaN(d.getTime())) return undefined;
+        return d.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Warsaw' });
+      };
+
+      for (let i = 0; i < opStations.length; i++) {
+        const st = opStations[i];
+        const knownSt = stationsById.get(st.stationId);
+        const stationName = getStationName(st.stationId);
+        const delay = st.departureDelayMinutes ?? st.arrivalDelayMinutes ?? 0;
+
+        let stopStatus = 'upcoming';
+        if (i < lastVisitedIndex) {
+          stopStatus = 'passed';
+        } else if (i === lastVisitedIndex) {
+          const depTime = parsePlkDate(st.actualDeparture || st.plannedDeparture)?.getTime() || nowMs;
+          stopStatus = (nowMs < depTime) ? 'current' : 'passed';
+        } else if (i === lastVisitedIndex + 1) {
+          stopStatus = 'next';
+        }
+
+        timetable.push({
+          stationId: st.stationId,
+          stationName,
+          lat: knownSt ? knownSt.lat : undefined,
+          lng: knownSt ? knownSt.lng : undefined,
+          plannedArrival: formatTime(st.plannedArrival),
+          plannedDeparture: formatTime(st.plannedDeparture),
+          actualArrival: formatTime(st.actualArrival),
+          actualDeparture: formatTime(st.actualDeparture),
+          delayMinutes: delay,
+          isConfirmed: Boolean(st.isConfirmed),
+          status: stopStatus,
+        });
+      }
+
       // Wzbogacenie pełnego korytarza pociągu o fizyczne tory
       const physicalFullPath = pathPoints.length > 1
         ? enrichPathWithPhysicalRails(pathPoints)
@@ -427,6 +467,7 @@ async function handleStationTrains(req, res, parsedUrl) {
         origin: originName,
         destination: destinationName,
         delayMinutes: delayMin,
+        timetable,
       });
     }
 

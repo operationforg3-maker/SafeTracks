@@ -1,3 +1,17 @@
+export type TrainStop = {
+  stationId: number;
+  stationName: string;
+  lat?: number;
+  lng?: number;
+  plannedArrival?: string;
+  plannedDeparture?: string;
+  actualArrival?: string;
+  actualDeparture?: string;
+  delayMinutes?: number;
+  isConfirmed?: boolean;
+  status: 'passed' | 'current' | 'next' | 'upcoming';
+};
+
 export type Train = {
   id: string;
   name?: string;
@@ -24,6 +38,7 @@ export type Train = {
     destination?: string;
     delayMinutes?: number;
   }[];
+  timetable?: TrainStop[];
 };
 
 export type HazardReport = {

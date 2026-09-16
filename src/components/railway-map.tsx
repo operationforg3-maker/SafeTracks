@@ -523,14 +523,43 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         zIndexOffset: 2000,
       }).addTo(map);
 
-      // Dopasuj widok: user + pociąg + cała trasa
+      // Rysuj punkty stacji na trasie jeśli dostępne
+      if (selectedTrain.timetable && selectedTrainRouteRef.current) {
+        selectedTrain.timetable.forEach((st) => {
+          if (st.lat && st.lng) {
+            const isCurrentOrNext = st.status === 'current' || st.status === 'next';
+            const dot = L.circleMarker([st.lat, st.lng], {
+              radius: isCurrentOrNext ? 5 : 3.5,
+              color: isCurrentOrNext ? '#F59E0B' : '#0F172A',
+              weight: 2,
+              fillColor: isCurrentOrNext ? '#FCD34D' : '#FFFFFF',
+              fillOpacity: 1,
+            });
+            const delayText = (st.delayMinutes || 0) > 0 ? ` (+${st.delayMinutes}')` : '';
+            dot.bindTooltip(
+              `<div style="font-size: 10px; font-weight: 700; font-family: sans-serif;">${st.stationName}${delayText}</div>`,
+              { direction: 'top', offset: [0, -4] }
+            );
+            dot.addTo(selectedTrainRouteRef.current);
+          }
+        });
+      }
+
+      // Dopasuj widok z uwzględnieniem bezpiecznych marginesów (żeby dolna/boczna karta nie zasłaniała trasy)
       const boundsPoints: [number, number][] = [trainPos];
       if (userPosition) boundsPoints.push([userPosition.lat, userPosition.lng]);
       if (selectedTrain.path && selectedTrain.path.length >= 2) {
         selectedTrain.path.forEach((p) => boundsPoints.push([p.lat, p.lng]));
       }
       const bounds = L.latLngBounds(boundsPoints);
-      map.fitBounds(bounds.pad(0.15), { maxZoom: 14, minZoom: 9, animate: true });
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+      map.fitBounds(bounds.pad(0.18), {
+        maxZoom: 14,
+        minZoom: 9,
+        animate: true,
+        paddingBottomRight: [20, isMobile ? 260 : 30],
+        paddingTopLeft: [30, 30],
+      });
     });
   }, [selectedTrain, mapReady, userPosition]);
 
