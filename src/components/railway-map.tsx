@@ -554,7 +554,7 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         maxZoom: 14,
         minZoom: 9,
         animate: true,
-        paddingBottomRight: [20, isMobile ? 260 : 30],
+        paddingBottomRight: [20, isMobile ? 300 : 30],
         paddingTopLeft: [30, 30],
       });
     });
@@ -625,11 +625,18 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
           hasPlayedPassSoundRef.current.delete(train.id);
         }
 
+        // Styl ramki markera wg poziomu zaufania pozycji:
+        // high   = pełna linia (dane potwierdzone z obwodów torowych)
+        // medium = linia z małymi przerwami
+        // low    = mocno przerywana (szacowana z rozkładu jazdy)
+        const conf = (train as any).positionConfidence || 'medium';
+        const borderStyle = isPassingNow ? 'solid' : conf === 'high' ? 'solid' : conf === 'medium' ? 'dashed' : 'dotted';
+        const borderColor = isPassingNow ? '#EF4444' : carrierColor;
 
         // Precyzyjny znacznik z reflektorami, animacją mijania i mikro-badge'em
         const iconHtml = `
           <div style="position: relative; width: 32px; height: 32px; cursor: pointer; user-select: none;">
-            <!-- Snop światła reflektorów czołowych oświetlający tory przed pociągiem -->
+            <!-- Snop świateł reflektorów czołowych oświetlający tory przed pociągiem -->
             <div style="position: absolute; top: 16px; left: 16px; width: 0; height: 0; transform: rotate(${headingRotation}deg); transform-origin: 0 0; pointer-events: none; z-index: 1;">
               <div style="position: absolute; top: -75px; left: -24px; width: 48px; height: 75px; background: linear-gradient(to top, rgba(254, 240, 138, 0.5) 0%, rgba(253, 224, 71, 0.18) 50%, rgba(255, 255, 255, 0) 100%); clip-path: polygon(30% 100%, 70% 100%, 100% 0%, 0% 0%); filter: blur(0.5px); animation: trainLightPulse 2s infinite ease-in-out;"></div>
               <div style="position: absolute; top: -16px; left: -4px; width: 8px; height: 8px; border-radius: 50%; background: #FEF08A; box-shadow: 0 0 10px #FEF08A, 0 0 20px #EAB308;"></div>
@@ -645,8 +652,8 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
                 : ''
             }
 
-            <!-- Okrągły puck lokomotywy zakotwiczony co do metra na osi toru -->
-            <div style="width: 32px; height: 32px; border-radius: 9999px; background: #0F172A; border: 2.5px solid ${isPassingNow ? '#EF4444' : carrierColor}; box-shadow: 0 0 14px ${isPassingNow ? 'rgba(239,68,68,0.9)' : glowColor}; display: flex; align-items: center; justify-content: center; position: relative; z-index: 5;">
+            <!-- Okrągły puck lokomotywy — styl ramki wg poziomu zaufania pozycji -->
+            <div style="width: 32px; height: 32px; border-radius: 9999px; background: #0F172A; border: 2.5px ${borderStyle} ${borderColor}; box-shadow: 0 0 14px ${isPassingNow ? 'rgba(239,68,68,0.9)' : glowColor}; display: flex; align-items: center; justify-content: center; position: relative; z-index: 5;">
               <svg viewBox="0 0 24 24" width="18" height="18" style="transform: rotate(${headingRotation}deg); transition: transform 0.3s ease; display: block;" fill="${isPassingNow ? '#EF4444' : carrierColor}">
                 <polygon points="12,2 21,20 12,15 3,20" />
               </svg>

@@ -126,7 +126,7 @@ export default function Home() {
 
           {/* Mobile: Non-blocking Floating Bottom Inspector Card */}
           {selectedTrain && (
-            <div className="sm:hidden absolute inset-x-0 bottom-0 z-[1000] max-h-[58vh] flex flex-col bg-card/98 backdrop-blur-md rounded-t-2xl border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-300">
+            <div className="sm:hidden absolute inset-x-0 bottom-0 z-[1000] max-h-[42vh] flex flex-col bg-card/98 backdrop-blur-md rounded-t-2xl border-t border-border shadow-2xl animate-in slide-in-from-bottom duration-300">
               <div className="w-12 h-1 bg-muted-foreground/30 rounded-full mx-auto mt-2 mb-1 shrink-0" />
               <TrainDetailPanel
                 train={selectedTrain}

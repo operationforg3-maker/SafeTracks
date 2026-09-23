@@ -39,6 +39,7 @@ export type Train = {
     delayMinutes?: number;
   }[];
   timetable?: TrainStop[];
+  positionConfidence?: 'high' | 'medium' | 'low'; // Poziom zaufania do interpolowanej pozycji (brak GPS w PLK API)
 };
 
 export type HazardReport = {

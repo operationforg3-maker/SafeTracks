@@ -15,10 +15,10 @@ for (const st of stationsData) {
   stationsById.set(st.id, st);
 }
 
-// In-memory cache surowych odpowiedzi PLK (TTL 10 sekund)
+// In-memory cache surowych odpowiedzi PLK (TTL 6 sekund = synchronizacja z 6s polling frontendu)
 // Pozycje pociągów są przeliczane dynamicznie dla każdego żądania (zero opóźnienia)
 const rawPlkCache = new Map();
-const RAW_CACHE_TTL_MS = 10 * 1000;
+const RAW_CACHE_TTL_MS = 6 * 1000;
 
 function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
   const R = 6371e3;
@@ -167,69 +167,115 @@ async function handleStationTrains(req, res, parsedUrl) {
     };
   }
 
+  // Wybierz 3 najbliższe stacje do multi-station query (szersze pokrycie terenu)
+  const MULTI_STATION_COUNT = 3;
+  const nearbyStationIds = [stationId];
+  if (latParam && lngParam) {
+    const userLat = parseFloat(latParam);
+    const userLng = parseFloat(lngParam);
+    if (!isNaN(userLat) && !isNaN(userLng)) {
+      const sorted = stationsData
+        .map(st => ({ id: st.id, dist: calculateDistanceMeters(userLat, userLng, st.lat, st.lng) }))
+        .sort((a, b) => a.dist - b.dist)
+        .slice(0, MULTI_STATION_COUNT)
+        .map(s => s.id);
+      for (const id of sorted) {
+        if (!nearbyStationIds.includes(id)) nearbyStationIds.push(id);
+      }
+    }
+  }
+  // Ogranicz do max 3 unikalnych stacji
+  const queryStationIds = nearbyStationIds.slice(0, MULTI_STATION_COUNT);
+
   const leadSecondsParam = query.leadSeconds ? parseInt(query.leadSeconds, 10) : 35;
   const leadMs = (!isNaN(leadSecondsParam) && leadSecondsParam >= 0 && leadSecondsParam <= 120 ? leadSecondsParam : 35) * 1000;
   const nowMs = Date.now();
   const effectiveNowMs = nowMs + leadMs;
 
   try {
-    let schedulesData = null;
-    let operationsData = null;
+    // Pobierz dane dla wszystkich 3 stacji rownolegle (z cache per-stacja)
+    const allSchedulesRoutes = new Map(); // orderId -> route
+    const allPlkStationsNames = {};
+    const allOperationsTrains = new Map(); // orderId -> opTrain (deduplikacja)
 
-    const rawCached = rawPlkCache.get(stationId);
-  if (rawCached && nowMs - rawCached.timestamp < RAW_CACHE_TTL_MS) {
-    schedulesData = rawCached.schedulesData;
-    operationsData = rawCached.operationsData;
-  } else {
-    try {
-      const headers = {
-        'X-API-Key': API_KEY,
-        'Accept': 'application/json',
-      };
+    await Promise.all(queryStationIds.map(async (sid) => {
+      let schedulesData = null;
+      let operationsData = null;
 
-      const [schedulesRes, operationsRes] = await Promise.all([
-        fetch(`${PLK_API_BASE_URL}/schedules?stations=${stationId}&pageSize=100`, { headers }).catch(
-          () => null
-        ),
-        fetch(
-          `${PLK_API_BASE_URL}/operations?stations=${stationId}&withPlanned=true&fullRoutes=true&pageSize=100`,
-          { headers }
-        ).catch(() => null),
-      ]);
+      const rawCached = rawPlkCache.get(sid);
+      if (rawCached && nowMs - rawCached.timestamp < RAW_CACHE_TTL_MS) {
+        schedulesData = rawCached.schedulesData;
+        operationsData = rawCached.operationsData;
+      } else {
+        try {
+          const headers = {
+            'X-API-Key': API_KEY,
+            'Accept': 'application/json',
+          };
 
-      if (schedulesRes && schedulesRes.ok) {
-        schedulesData = await schedulesRes.json().catch(() => null);
+          const [schedulesRes, operationsRes] = await Promise.all([
+            fetch(`${PLK_API_BASE_URL}/schedules?stations=${sid}&pageSize=100`, { headers }).catch(() => null),
+            fetch(
+              `${PLK_API_BASE_URL}/operations?stations=${sid}&withPlanned=true&fullRoutes=true&pageSize=100`,
+              { headers }
+            ).catch(() => null),
+          ]);
+
+          if (schedulesRes && schedulesRes.ok) {
+            schedulesData = await schedulesRes.json().catch(() => null);
+          }
+          if (operationsRes && operationsRes.ok) {
+            operationsData = await operationsRes.json().catch(() => null);
+          }
+
+          if (schedulesData || operationsData) {
+            rawPlkCache.set(sid, { timestamp: nowMs, schedulesData, operationsData });
+          }
+        } catch (fetchErr) {
+          console.warn('[PLK Fetch Warning]:', fetchErr);
+        }
       }
-      if (operationsRes && operationsRes.ok) {
-        operationsData = await operationsRes.json().catch(() => null);
+
+      // Zbierz trasy z rozkladu (schedules)
+      if (schedulesData && schedulesData.routes) {
+        for (const r of schedulesData.routes) {
+          if (!allSchedulesRoutes.has(r.orderId)) {
+            allSchedulesRoutes.set(r.orderId, r);
+          }
+        }
       }
 
-      if (schedulesData || operationsData) {
-        rawPlkCache.set(stationId, {
-          timestamp: nowMs,
-          schedulesData,
-          operationsData,
-        });
-      }
-    } catch (fetchErr) {
-      console.warn('[PLK Fetch Warning]:', fetchErr);
-    }
-  }
+      // Zbierz nazwy stacji ze slownikow
+      Object.assign(allPlkStationsNames,
+        (schedulesData && schedulesData.dictionaries && schedulesData.dictionaries.stations) || {},
+        (operationsData && operationsData.stations) || {}
+      );
 
-    const routesMap = new Map();
-    if (schedulesData && schedulesData.routes) {
-      for (const r of schedulesData.routes) {
-        routesMap.set(r.orderId, r);
+      // Zbierz pociagi z operacji — deduplikuj po orderId
+      const opTrains = (operationsData && operationsData.trains) || [];
+      for (const opTrain of opTrains) {
+        const oid = opTrain.orderId;
+        if (!allOperationsTrains.has(oid)) {
+          allOperationsTrains.set(oid, opTrain);
+        } else {
+          // Jezeli juz mamy ten pociag, scal stacje (pelniejsza lista = lepsze pozycjonowanie)
+          const existing = allOperationsTrains.get(oid);
+          const existingStIds = new Set(existing.stations.map(s => s.stationId));
+          const mergedStations = [...existing.stations];
+          for (const st of opTrain.stations) {
+            if (!existingStIds.has(st.stationId)) {
+              mergedStations.push(st);
+            }
+          }
+          // Posortuj stacje wg plannedSequenceNumber
+          mergedStations.sort((a, b) => (a.plannedSequenceNumber || 0) - (b.plannedSequenceNumber || 0));
+          allOperationsTrains.set(oid, { ...existing, stations: mergedStations });
+        }
       }
-    }
-
-    const plkStationsNames = {
-      ...((schedulesData && schedulesData.dictionaries && schedulesData.dictionaries.stations) || {}),
-      ...((operationsData && operationsData.stations) || {}),
-    };
+    }));
 
     const getStationName = (id) => {
-      const fromDict = plkStationsNames[String(id)];
+      const fromDict = allPlkStationsNames[String(id)];
       if (fromDict) return fromDict;
       const fromAll = stationsById.get(id);
       if (fromAll) return fromAll.name;
@@ -244,14 +290,12 @@ async function handleStationTrains(req, res, parsedUrl) {
     const yesterday = new Date(currentDate.getTime() - 86400000);
     const yesterdayStr = yesterday.toISOString().slice(0, 10);
 
-    const operationsTrains = (operationsData && operationsData.trains) || [];
-
-    for (const opTrain of operationsTrains) {
+    for (const [, opTrain] of allOperationsTrains) {
       const opDate = opTrain.operatingDate;
       if (opDate !== todayStr && opDate !== tomorrowStr && opDate !== yesterdayStr) continue;
 
       const orderId = opTrain.orderId;
-      const sched = routesMap.get(orderId);
+      const sched = allSchedulesRoutes.get(orderId);
 
       const carrierCode = sched?.carrierCode || 'PKP';
       const trainName = sched?.name || undefined;
@@ -261,7 +305,8 @@ async function handleStationTrains(req, res, parsedUrl) {
       const opStations = opTrain.stations || [];
       if (opStations.length === 0) continue;
 
-      const targetStationStop = opStations.find((s) => s.stationId === stationId);
+      // Filtr czasowy: widoczny tylko gdy pociag przechodzi przez jedna z queryowanych stacji
+      const targetStationStop = opStations.find((s) => queryStationIds.includes(s.stationId));
       if (!targetStationStop) continue;
 
       const depTimeStr =
@@ -277,7 +322,7 @@ async function handleStationTrains(req, res, parsedUrl) {
       const diffMs = stopTimeDate.getTime() - nowMs;
       const diffMinutes = diffMs / 60000;
 
-      // Okno czasowe: od -45 minut temu do +180 minut w przód, lub status w toku 'P'
+      // Okno czasowe: od -45 minut temu do +180 minut w przod, lub status w toku 'P'
       if (opTrain.trainStatus !== 'P' && (diffMinutes < -45 || diffMinutes > 180)) {
         continue;
       }
@@ -291,9 +336,9 @@ async function handleStationTrains(req, res, parsedUrl) {
       const lastStop = opStations[opStations.length - 1];
       const originName = getStationName(firstStop.stationId);
       const destinationName = getStationName(lastStop.stationId);
-      const routeDesc = `${originName} ➔ ${destinationName}`;
+      const routeDesc = `${originName} \u27a4 ${destinationName}`;
 
-      // Budowanie ścieżki (path) ze znanych współrzędnych stacji wzdłuż torów
+      // Budowanie sciezki (path) ze znanych wspolrzednych stacji
       const pathPoints = [];
       for (const st of opStations) {
         const known = stationsById.get(st.stationId);
@@ -309,9 +354,9 @@ async function handleStationTrains(req, res, parsedUrl) {
       let trainLat = station.lat;
       let trainLng = station.lng;
       let calculatedHeading = 0;
-      let estimatedSpeedKmh = 0; // Domyślnie 0 (postój / oczekiwanie)
+      let estimatedSpeedKmh = 0;
 
-      // Wyznaczanie segmentu między stacjami z uwzględnieniem kompensacji opóźnienia telemetrii (effectiveNowMs)
+      // Wyznaczanie segmentu miedzy stacjami z uwzglednieniem kompensacji opoznienia telemetrii
       let lastVisitedIndex = -1;
       for (let i = 0; i < opStations.length; i++) {
         const st = opStations[i];
@@ -324,11 +369,25 @@ async function handleStationTrains(req, res, parsedUrl) {
         }
       }
 
+      // Oblicz poziom zaufania pozycji:
+      // 'high'   = obie stacje segmentu maja isConfirmed:true (realne dane torowe)
+      // 'medium' = przynajmniej jedna potwierdzona
+      // 'low'    = zadna nie potwierdzona (tylko plan rozkladu)
+      let positionConfidence = 'low';
+
       if (lastVisitedIndex >= 0 && lastVisitedIndex < opStations.length - 1) {
         const prevStop = opStations[lastVisitedIndex];
         const nextStop = opStations[lastVisitedIndex + 1];
         const prevStation = stationsById.get(prevStop.stationId);
         const nextStation = stationsById.get(nextStop.stationId);
+
+        if (prevStop.isConfirmed && nextStop.isConfirmed) {
+          positionConfidence = 'high';
+        } else if (prevStop.isConfirmed) {
+          positionConfidence = 'medium';
+        } else {
+          positionConfidence = 'low';
+        }
 
         if (prevStation && nextStation) {
           const prevDepTime = parsePlkDate(
@@ -338,9 +397,8 @@ async function handleStationTrains(req, res, parsedUrl) {
             nextStop.actualArrival || nextStop.plannedArrival || nextStop.actualDeparture || nextStop.plannedDeparture
           )?.getTime() || (effectiveNowMs + 600000);
 
-          // Sprawdzenie czy pociąg faktycznie odjechał ze stacji, czy ma postój na peronie
           if (effectiveNowMs < prevDepTime) {
-            // Postój na stacji (dwell time)
+            // Postoj na stacji (dwell time)
             trainLat = prevStation.lat;
             trainLng = prevStation.lng;
             estimatedSpeedKmh = 0;
@@ -350,7 +408,7 @@ async function handleStationTrains(req, res, parsedUrl) {
             const elapsed = Math.max(0, Math.min(totalDuration, effectiveNowMs - prevDepTime));
             const progressRatio = elapsed / totalDuration;
 
-            // Rzeczywista fizyczna ścieżka po torach między tymi stacjami (geodezja torowa)
+            // Rzeczywista fizyczna sciezka po torach miedzy tymi stacjami
             const physicalSegment = getTrackSegmentBetweenPoints(
               prevStation.lat, prevStation.lng,
               nextStation.lat, nextStation.lng
@@ -376,7 +434,7 @@ async function handleStationTrains(req, res, parsedUrl) {
             const segmentAvgKmh = Math.round((distanceMeters / (totalDuration / 1000)) * 3.6);
             const cruiseSpeed = getRealisticCruisingSpeed(category, carrierCode, segmentAvgKmh, trainId);
 
-            // Płynna faza przyspieszania po stacji / hamowania przed kolejną stacją
+            // Plynna faza przyspieszania / hamowania
             if (progressRatio < 0.08) {
               const accelFactor = 0.35 + 0.65 * (progressRatio / 0.08);
               estimatedSpeedKmh = Math.max(20, Math.round(cruiseSpeed * accelFactor));
@@ -393,7 +451,7 @@ async function handleStationTrains(req, res, parsedUrl) {
           estimatedSpeedKmh = 0;
         }
       } else if (lastVisitedIndex >= opStations.length - 1 && opStations.length > 0) {
-        // Pociąg na stacji końcowej
+        // Pociag na stacji koncowej
         const lastSt = stationsById.get(opStations[opStations.length - 1].stationId);
         if (lastSt) {
           trainLat = lastSt.lat;
@@ -401,7 +459,7 @@ async function handleStationTrains(req, res, parsedUrl) {
         }
         estimatedSpeedKmh = 0;
       } else if (pathPoints.length > 0) {
-        // Pociąg na stacji początkowej oczekujący na odjazd
+        // Pociag na stacji poczatkowej oczekujacy na odjazd
         trainLat = pathPoints[0].lat;
         trainLng = pathPoints[0].lng;
         estimatedSpeedKmh = 0;
@@ -410,7 +468,7 @@ async function handleStationTrains(req, res, parsedUrl) {
         }
       }
 
-      // Budowa szczegółowego rozkładu stacji i opóźnień (timetable)
+      // Budowa szczegolowego rozkladu stacji i opoznien (timetable)
       const timetable = [];
       const formatTime = (timeStr) => {
         if (!timeStr) return undefined;
@@ -450,12 +508,12 @@ async function handleStationTrains(req, res, parsedUrl) {
         });
       }
 
-      // Wzbogacenie pełnego korytarza pociągu o fizyczne tory
+      // Wzbogacenie pelnego korytarza pociagu o fizyczne tory
       const physicalFullPath = pathPoints.length > 1
         ? enrichPathWithPhysicalRails(pathPoints)
         : [{ lat: trainLat, lng: trainLng }];
 
-      // Wyznacz dokładny indeks na fizycznej ścieżce (waypoint) dla płynnego dead-reckoningu
+      // Wyznacz dokladny indeks na fizycznej sciezce dla plynnego dead-reckoningu
       let currentPathIndex = 0;
       if (physicalFullPath.length > 1) {
         let minDist = Infinity;
@@ -488,13 +546,14 @@ async function handleStationTrains(req, res, parsedUrl) {
         destination: destinationName,
         delayMinutes: delayMin,
         timetable,
+        positionConfidence,
       });
     }
 
-    // 1. Łączenie składów sprzężonych (trakcja wielokrotna / ukrotniona)
+    // 1. Laczenie skladow sprzezonych (trakcja wielokrotna / ukrotniona)
     const mergedTrains = mergeConjoinedTrains(trains);
 
-    // 2. Sortowanie według odległości od badanej stacji
+    // 2. Sortowanie wedlug odleglosci od badanej stacji
     mergedTrains.sort((a, b) => {
       const distA = calculateDistanceMeters(station.lat, station.lng, a.currentPosition.lat, a.currentPosition.lng);
       const distB = calculateDistanceMeters(station.lat, station.lng, b.currentPosition.lat, b.currentPosition.lng);
@@ -512,7 +571,7 @@ async function handleStationTrains(req, res, parsedUrl) {
       totalFound: mergedTrains.length,
       generatedAt: new Date().toISOString(),
       leadSeconds: Math.round(leadMs / 1000),
-      cached: Boolean(rawCached),
+      queriedStations: queryStationIds.length,
     };
 
     res.writeHead(200, {
@@ -529,7 +588,7 @@ async function handleStationTrains(req, res, parsedUrl) {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
     });
-    res.end(JSON.stringify({ error: 'Błąd pobierania danych PKP PLK', details: err.message }));
+    res.end(JSON.stringify({ error: 'Blad pobierania danych PKP PLK', details: err.message }));
   }
 }
 
