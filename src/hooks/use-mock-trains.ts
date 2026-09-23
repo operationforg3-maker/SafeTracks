@@ -36,19 +36,24 @@ export const useMockTrains = (userPosition?: Position): UseLiveTrainsReturn => {
     setActiveStationState(st);
   }, []);
 
+  const hasSetInitialGpsStationRef = useRef<boolean>(false);
+
   // Automatyczne ustawienie najbliższej stacji gdy GPS jest po raz pierwszy dostępny,
   // oraz auto-przełączanie gdy użytkownik przemieści się >3km od aktywnej stacji
   useEffect(() => {
     if (userPosition && !hasManuallyChosenStation.current) {
       const nearest = findNearestStation(userPosition.lat, userPosition.lng);
+
+      // Pierwsza lokalizacja z GPS natychmiast ustawia rzeczywistą najbliższą stację użytkownika
+      if (!hasSetInitialGpsStationRef.current) {
+        hasSetInitialGpsStationRef.current = true;
+        setActiveStationState(nearest);
+        return;
+      }
+
+      // Kolejne aktualizacje w trakcie jazdy: auto-switch po pokonaniu >3km
       const current = activeStationRef.current;
-      if (!current || current.id !== nearest.id) {
-        // Pierwsze ustawienie — zawsze
-        if (!current) {
-          setActiveStationState(nearest);
-          return;
-        }
-        // Auto-switch gdy użytkownik >3km od aktywnej stacji (np. jedzie pociągiem)
+      if (current && current.id !== nearest.id) {
         const distFromCurrent = Math.sqrt(
           ((userPosition.lat - current.lat) * 111139) ** 2 +
           ((userPosition.lng - current.lng) * 111139 * Math.cos((userPosition.lat * Math.PI) / 180)) ** 2
@@ -58,7 +63,7 @@ export const useMockTrains = (userPosition?: Position): UseLiveTrainsReturn => {
         }
       }
     } else if (!activeStationRef.current && !userPosition) {
-      // Domyślna Warszawa Centralna do czasu złapania GPS
+      // Domyślna Warszawa Centralna tylko do czasu złapania GPS
       const defaultSt = allStations.find((s) => s.name === 'Warszawa Centralna') || allStations[0];
       setActiveStationState(defaultSt);
     }

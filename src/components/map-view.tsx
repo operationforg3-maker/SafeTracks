@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { Train } from '@/lib/types';
+import type { Position } from '@/hooks/use-geolocation';
 
 interface MapViewProps {
   trains: Train[];
@@ -10,6 +11,7 @@ interface MapViewProps {
   onTrainSelect?: (train: Train) => void;
   onOpenSpotDialog?: () => void;
   selectedTrain?: Train | null;
+  userPosition?: Position | null;
 }
 
 const DynamicRailwayMap = dynamic(
@@ -27,7 +29,7 @@ const DynamicRailwayMap = dynamic(
   }
 );
 
-export function MapView({ trains, enthusiastMode, onTrainSelect, onOpenSpotDialog, selectedTrain }: MapViewProps) {
+export function MapView({ trains, enthusiastMode, onTrainSelect, onOpenSpotDialog, selectedTrain, userPosition }: MapViewProps) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -53,6 +55,7 @@ export function MapView({ trains, enthusiastMode, onTrainSelect, onOpenSpotDialo
         onTrainSelect={onTrainSelect}
         onOpenSpotDialog={onOpenSpotDialog}
         selectedTrain={selectedTrain}
+        userPosition={userPosition}
       />
     </div>
   );

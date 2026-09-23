@@ -81,6 +81,7 @@ export default function Home() {
             onTrainSelect={(train) => setSelectedTrain(train)}
             onOpenSpotDialog={() => setIsSpotDialogOpen(true)}
             selectedTrain={selectedTrain}
+            userPosition={userPosition}
           />
 
           {/* Mobile: floating button to open train list */}
@@ -114,6 +115,7 @@ export default function Home() {
                 lastSync={lastSync}
                 onRefresh={refreshNow}
                 onClose={() => setShowMobileList(false)}
+                userPosition={userPosition}
               />
             </div>
           )}
@@ -150,6 +152,7 @@ export default function Home() {
               isLoading={isLoadingTrains}
               lastSync={lastSync}
               onRefresh={refreshNow}
+              userPosition={userPosition}
             />
           )}
         </div>

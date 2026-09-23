@@ -22,6 +22,7 @@ interface DashboardProps {
   lastSync?: Date | null;
   onRefresh?: () => void;
   onClose?: () => void;
+  userPosition?: Position | null;
 }
 
 export function Dashboard({
@@ -33,8 +34,10 @@ export function Dashboard({
   isLoading,
   onRefresh,
   onClose,
+  userPosition: propUserPosition,
 }: DashboardProps) {
-  const { position, error: geoError } = useGeolocation();
+  const { position: hookPosition, error: geoError } = useGeolocation();
+  const position = propUserPosition !== undefined && propUserPosition !== null ? propUserPosition : hookPosition;
   const [geofenceRadius] = useGeofenceRadius();
 
   // Sortowanie: w strefie > zbliżające się > reszta (stabilne z bucketing)

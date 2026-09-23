@@ -14,12 +14,15 @@ import { useTheme } from '@/components/theme-provider';
 
 import 'leaflet/dist/leaflet.css';
 
+import type { Position } from '@/hooks/use-geolocation';
+
 interface RailwayMapProps {
   trains: Train[];
   enthusiastMode: boolean;
   onTrainSelect?: (train: Train) => void;
   onOpenSpotDialog?: () => void;
   selectedTrain?: Train | null;
+  userPosition?: Position | null;
 }
 
 const TILE_PROVIDERS: Record<MapStyleOption, { url: string; attribution: string; maxZoom: number; subdomains?: string | string[] }> = {
@@ -45,7 +48,7 @@ const TILE_PROVIDERS: Record<MapStyleOption, { url: string; attribution: string;
   },
 };
 
-export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDialog, selectedTrain }: RailwayMapProps) {
+export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDialog, selectedTrain, userPosition: propUserPosition }: RailwayMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const trainMarkersRef = useRef<Map<string, any>>(new Map());
@@ -62,7 +65,8 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
   const selectedTrainMarkerRef = useRef<any>(null);
 
   const { effectiveTheme } = useTheme();
-  const { position: userPosition } = useGeolocation();
+  const { position: hookUserPosition } = useGeolocation();
+  const userPosition = propUserPosition !== undefined && propUserPosition !== null ? propUserPosition : hookUserPosition;
   const [mapStyle, setMapStyle] = useState<MapStyleOption>(() =>
     effectiveTheme === 'light' ? 'voyager' : 'dark'
   );
@@ -144,9 +148,20 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
       });
 
-      const initialCenter: [number, number] = userPosition
-        ? [userPosition.lat, userPosition.lng]
-        : [52.231, 21.006];
+      let initialCenter: [number, number] = [52.231, 21.006];
+      if (userPosition) {
+        initialCenter = [userPosition.lat, userPosition.lng];
+      } else if (typeof window !== 'undefined') {
+        try {
+          const saved = localStorage.getItem('safetracks_last_position');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (typeof parsed?.lat === 'number' && typeof parsed?.lng === 'number') {
+              initialCenter = [parsed.lat, parsed.lng];
+            }
+          }
+        } catch {}
+      }
 
       const map = L.map(mapContainerRef.current, {
         center: initialCenter,
@@ -739,8 +754,18 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         },
         (err) => {
           console.warn('[GPS Centering Error]:', err);
+          // Zapasowa próba o niskiej dokładności (sieć Wi-Fi / IP)
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              mapInstanceRef.current?.setView([pos.coords.latitude, pos.coords.longitude], 16, {
+                animate: true,
+              });
+            },
+            () => {},
+            { enableHighAccuracy: false, timeout: 6000, maximumAge: 300000 }
+          );
         },
-        { enableHighAccuracy: true, timeout: 8000 }
+        { enableHighAccuracy: false, timeout: 4000, maximumAge: 60000 }
       );
     }
   };
