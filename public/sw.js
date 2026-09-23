@@ -1,5 +1,5 @@
 // SafeTracks Service Worker (PWA & Offline Support)
-const CACHE_NAME = 'safetracks-v5';
+const CACHE_NAME = 'safetracks-v6';
 const STATIC_ASSETS = [
   '/',
   '/app',

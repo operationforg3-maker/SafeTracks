@@ -84,29 +84,22 @@ export default function Home() {
           />
 
           {/* Mobile: floating button to open train list */}
-          <div className="absolute bottom-4 left-4 z-[500] sm:hidden">
-            <Button
-              size="sm"
-              onClick={() => setShowMobileList(!showMobileList)}
-              className="h-10 px-4 shadow-xl bg-card text-card-foreground border border-border gap-2 font-bold text-xs hover:bg-muted"
-            >
-              {showMobileList ? (
-                <>
-                  <X className="h-4 w-4" />
-                  <span>Zamknij</span>
-                </>
-              ) : (
-                <>
-                  <List className="h-4 w-4" />
-                  <span>Lista ({trains.length})</span>
-                </>
-              )}
-            </Button>
-          </div>
+          {!showMobileList && !selectedTrain && (
+            <div className="absolute bottom-4 left-4 z-[500] sm:hidden">
+              <Button
+                size="sm"
+                onClick={() => setShowMobileList(true)}
+                className="h-10 px-4 shadow-xl bg-card text-card-foreground border border-border gap-2 font-bold text-xs hover:bg-muted"
+              >
+                <List className="h-4 w-4" />
+                <span>Lista ({trains.length})</span>
+              </Button>
+            </div>
+          )}
 
           {/* Mobile: slide-up train list overlay */}
           {showMobileList && (
-            <div className="absolute inset-x-0 bottom-0 z-[500] sm:hidden h-[55%] bg-card/98 backdrop-blur-md border-t rounded-t-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+            <div className="absolute inset-x-0 bottom-0 z-[1050] sm:hidden h-[55%] bg-card/98 backdrop-blur-md border-t rounded-t-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
               <div className="w-12 h-1 bg-muted-foreground/30 rounded-full mx-auto mt-2 mb-1" />
               <Dashboard
                 trains={trains}
@@ -120,6 +113,7 @@ export default function Home() {
                 isLoading={isLoadingTrains}
                 lastSync={lastSync}
                 onRefresh={refreshNow}
+                onClose={() => setShowMobileList(false)}
               />
             </div>
           )}

@@ -730,6 +730,18 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
       mapInstanceRef.current.setView([userPosition.lat, userPosition.lng], 16, {
         animate: true,
       });
+    } else if (mapInstanceRef.current && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          mapInstanceRef.current?.setView([pos.coords.latitude, pos.coords.longitude], 16, {
+            animate: true,
+          });
+        },
+        (err) => {
+          console.warn('[GPS Centering Error]:', err);
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
     }
   };
 
@@ -821,13 +833,27 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
 
       {/* Floating controls — minimal */}
       <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-1.5">
+        <Button
+          size="sm"
+          variant="outline"
+          className={`h-8 w-8 p-0 shadow-lg backdrop-blur-md border hover:bg-accent transition-colors ${
+            userPosition
+              ? 'bg-card/95 text-sky-500 border-sky-500/40 hover:text-sky-400'
+              : 'bg-card/90 text-muted-foreground'
+          }`}
+          onClick={handleCenterOnUser}
+          title={userPosition ? "Centruj na Twojej pozycji GPS (zoom 16)" : "Włącz GPS i wycentruj na mnie"}
+        >
+          <Locate className={`h-4 w-4 ${userPosition ? 'text-sky-500' : 'text-muted-foreground'}`} />
+        </Button>
+
         {userPosition && (
           <Button
             size="sm"
             variant="outline"
             className="h-8 w-8 p-0 shadow-lg backdrop-blur-md bg-card/90 border hover:bg-accent"
             onClick={frameOnApproachingTrain}
-            title="Kadruj na pociąg"
+            title="Kadruj na zbliżający się pociąg"
           >
             <Target className="h-4 w-4 text-emerald-500" />
           </Button>
@@ -842,18 +868,6 @@ export function RailwayMap({ trains, enthusiastMode, onTrainSelect, onOpenSpotDi
         >
           <Settings className="h-4 w-4 text-primary" />
         </Button>
-
-        {userPosition && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 w-8 p-0 shadow-lg backdrop-blur-md bg-card/90 border hover:bg-accent"
-            onClick={handleCenterOnUser}
-            title="Centruj na mnie"
-          >
-            <Locate className="h-4 w-4 text-primary" />
-          </Button>
-        )}
       </div>
 
       <MapSettingsDialog

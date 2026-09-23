@@ -5,7 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { TrainCard } from '@/components/train-card';
 import type { Train } from '@/lib/types';
 import { useGeolocation } from '@/hooks/use-geolocation';
-import { WifiOff, Radio, RefreshCw, Search, Loader2 } from 'lucide-react';
+import { WifiOff, Radio, RefreshCw, Search, Loader2, X } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { calculateDistanceMeters, isTrainApproaching, GeocodedStation } from '@/services/pkp-api';
@@ -21,6 +21,7 @@ interface DashboardProps {
   isLoading?: boolean;
   lastSync?: Date | null;
   onRefresh?: () => void;
+  onClose?: () => void;
 }
 
 export function Dashboard({
@@ -31,6 +32,7 @@ export function Dashboard({
   onOpenStationSearch,
   isLoading,
   onRefresh,
+  onClose,
 }: DashboardProps) {
   const { position, error: geoError } = useGeolocation();
   const [geofenceRadius] = useGeofenceRadius();
@@ -96,6 +98,11 @@ export function Dashboard({
             {onRefresh && (
               <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={onRefresh} disabled={isLoading}>
                 <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin text-primary' : 'text-muted-foreground'}`} />
+              </Button>
+            )}
+            {onClose && (
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground" onClick={onClose} title="Zamknij listę">
+                <X className="h-4 w-4" />
               </Button>
             )}
           </div>
